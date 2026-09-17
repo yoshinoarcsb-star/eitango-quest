@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英単語クエストver.0.3</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f5a623;
+            --bg-color: #1a1a2e;
+            --panel-color: #16213e;
+            --text-color: #ffffff;
+            --danger-color: #e94560;
+            --success-color: #4caf50;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        #app-container {
+            width: 100%;
+            max-width: 480px;
+            background-color: var(--panel-color);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .screen { display: none; }
+        .screen.active { display: block; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        h1, h2, h3 { text-align: center; color: var(--secondary-color); margin-top: 0; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            margin: 8px 0;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s;
+            text-align: center;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-sub { background: rgba(255,255,255,0.08); font-weight: normal; font-size: 14px; padding: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stats-box { background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; }
+        .badge-tag {
+            display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px;
+            background: rgba(255,255,255,0.15); margin-left: 6px; vertical-align: middle;
+        }
+        .badge-tag.gold { background: #f5a623; color: #1a1a2e; font-weight: bold; }
+        .progress-track { background: rgba(255,255,255,0.1); border-radius: 6px; height: 6px; overflow: hidden; margin-top: 4px; }
+        .progress-fill { height: 100%; background: var(--success-color); transition: width 0.3s; }
+        .unit-card {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%; padding: 12px 16px; margin: 8px 0;
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px; cursor: pointer; color: var(--text-color); text-align: left;
+        }
+        .unit-card .meta { font-size: 12px; color: #999; margin-top: 2px; }
+        .scroll-list { max-height: 60vh; overflow-y: auto; padding-right: 4px; }
+        /* クイズ画面用 */
+        #timer-bar-container { width: 100%; height: 10px; background: #333; border-radius: 5px; margin-bottom: 20px; overflow: hidden; }
+        #timer-bar { width: 100%; height: 100%; background: var(--danger-color); transition: width 0.1s linear; }
+        #quiz-progress { text-align: center; font-size: 12px; color: #999; margin-bottom: 4px; }
+        #word-display { font-size: 34px; text-align: center; margin: 24px 0 8px; font-weight: bold; word-break: break-word; }
+        #combo-display { text-align: center; color: #ff2a74; font-weight: bold; font-size: 18px; height: 25px; }
+        .choice-btn { font-size: 15px; padding: 14px 8px; min-height: 56px; display: flex; align-items: center; justify-content: center; }
+        .choice-btn.correct-flash { background: var(--success-color) !important; }
+        .choice-btn.wrong-flash { background: var(--danger-color) !important; }
+        select { background: #0f1730; color: white; border: 1px solid #444; }
+
+        /* ガチャ演出 */
+        #gacha-stage { min-height: 220px; display: flex; align-items: center; justify-content: center; position: relative; margin: 10px 0; }
+        #capsule-wrap { position: relative; width: 120px; height: 120px; }
+        #capsule { width: 100%; height: 100%; position: relative; transition: transform 0.15s; }
+        #capsule.shaking { animation: shake 0.5s ease-in-out infinite; }
+        @keyframes shake {
+            0%, 100% { transform: rotate(0deg) translateX(0); }
+            20% { transform: rotate(-8deg) translateX(-4px); }
+            40% { transform: rotate(7deg) translateX(4px); }
+            60% { transform: rotate(-6deg) translateX(-3px); }
+            80% { transform: rotate(5deg) translateX(3px); }
+        }
+        .capsule-half {
+            position: absolute; width: 100%; height: 50%; left: 0;
+            border-radius: 60px 60px 0 0 / 60px 60px 0 0;
+            box-shadow: inset -8px -8px 16px rgba(0,0,0,0.2), inset 8px 8px 16px rgba(255,255,255,0.15);
+        }
+        .capsule-top { top: 0; background: var(--secondary-color); border-radius: 60px 60px 0 0; transition: transform 0.4s ease-in, opacity 0.3s; }
+        .capsule-bottom { bottom: 0; background: var(--primary-color); border-radius: 0 0 60px 60px; transition: transform 0.4s ease-in, opacity 0.3s; }
+        .capsule-shine { position: absolute; top: 14px; left: 18px; width: 22px; height: 22px; background: rgba(255,255,255,0.5); border-radius: 50%; filter: blur(2px); }
+        #capsule.popped .capsule-top { transform: translateY(-70px) rotate(-25deg); opacity: 0; }
+        #capsule.popped .capsule-bottom { transform: translateY(70px) rotate(20deg); opacity: 0; }
+        #gacha-result { text-align: center; opacity: 0; transform: scale(0.5); transition: all 0.35s ease-out; position: absolute; }
+        #gacha-result.show { opacity: 1; transform: scale(1); }
+        #gacha-result.hidden { display: none; }
+        #gacha-result-icon { font-size: 56px; line-height: 1; margin-bottom: 8px; }
+        #gacha-result-name { font-size: 17px; font-weight: bold; color: var(--secondary-color); margin-bottom: 4px; }
+        #gacha-result-desc { font-size: 13px; color: #ccc; }
+        .burst { position: absolute; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; }
+        @keyframes burstfly {
+            0% { transform: translate(0,0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--bx), var(--by)) scale(0); opacity: 0; }
+        }
+        .burst.fly { animation: burstfly 0.7s ease-out forwards; }
+
+        /* 音声ボタン */
+        #audio-row { display: flex; gap: 8px; justify-content: center; margin: 0 0 16px; }
+        .audio-btn { width: auto; margin: 0; padding: 8px 16px; font-size: 14px; background: rgba(255,255,255,0.12); }
+        .audio-btn.playing { background: var(--success-color); }
+        .audio-btn.unavailable { opacity: 0.3; }
+        #save-warn { display: none; background: var(--danger-color); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 6px; margin-bottom: 10px; text-align: center; }
+        #res-mode { font-size: 13px; color: #aaa; margin-bottom: 6px; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div id="save-warn">⚠ 進捗を保存できません。このまま遊べますが記録は残りません。埋め込み表示やプライベートモードではなく、HTMLファイルを Safari / Chrome で直接開いてください。</div>
+
+    <div id="screen-login" class="screen active">
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.0.3</small></h1>
+        <div class="stats-box" style="text-align:center;">
+            <label style="display:block; margin-bottom:6px;">生徒番号</label>
+            <input type="text" id="loginNumber" inputmode="numeric" placeholder="001" style="width:100%; padding:10px; border-radius:8px; border:1px solid #444; background:#0f1730; color:#fff; font-size:16px; text-align:center; margin-bottom:12px;">
+            <label style="display:block; margin-bottom:6px;">合言葉</label>
+            <input type="password" id="loginPass" inputmode="numeric" placeholder="••••" style="width:100%; padding:10px; border-radius:8px; border:1px solid #444; background:#0f1730; color:#fff; font-size:16px; text-align:center;">
+        </div>
+        <div id="loginError" style="color:var(--danger-color); text-align:center; font-size:13px; min-height:18px; margin-bottom:8px;"></div>
+        <button class="btn" id="loginBtn" onclick="submitLogin()">ログイン</button>
+        <div id="loginHint" style="text-align:center; font-size:12px; color:#999; margin-top:8px;">生徒番号と合言葉を入力</div>
+    </div>
+
+    <div id="screen-home" class="screen">
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.0.3</small></h1>
+        <div class="stats-box">
+            <div>🔥 連続ログイン: <span id="stat-login">1</span> 日</div>
+            <div>🏆 今週のハイスコア: <span id="stat-highscore">0</span> 点</div>
+            <div>💎 所持ポイント: <span id="stat-points">0</span> pt</div>
+            <div>📖 収録単語数: <span id="stat-totalwords">0</span> 語</div>
+        </div>
+        <div id="pickup-box" class="stats-box" style="display:none;">
+            <div style="color:var(--secondary-color); font-weight:bold; margin-bottom:8px;">📌 今週のピックアップ</div>
+            <div id="pickup-list"></div>
+        </div>
+        <button class="btn" onclick="changeScreen('screen-gradeTop')">冒険に出る（学年選択）</button>
+        <button class="btn" style="background-color: var(--secondary-color); color:#1a1a2e;" onclick="openGachaScreen()">ガチャを引く (50pt)</button>
+        <button class="btn btn-sub" onclick="changeScreen('screen-collection')">🏅 コレクション（バッジ）</button>
+        <button class="btn btn-sub" onclick="changeScreen('screen-records')">📊 自分の記録</button>
+    </div>
+
+    <div id="screen-gradeTop" class="screen">
+        <h2>学年を選ぶ</h2>
+        <div id="gradeTop-list"></div>
+        <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">戻る</button>
+    </div>
+
+    <div id="screen-unit" class="screen">
+        <h2 id="unit-screen-title">ステージ選択</h2>
+        <div class="scroll-list" id="unit-list"></div>
+        <button class="btn" style="background:#555;" onclick="changeScreen('screen-gradeTop')">戻る</button>
+    </div>
+
+    <div id="screen-ready" class="screen">
+        <h2>クエスト準備</h2>
+        <p style="text-align:center;" id="ready-info"></p>
+        <div class="stats-box" id="ready-progress"></div>
+        <div class="stats-box">
+            <label>🎒 使用するアイテムを選べ（最大3つまで）：</label>
+            <div id="item-checklist" style="margin-top:8px;"></div>
+            <div style="font-size:11px; color:#999; margin-top:6px;">※アイテムを使うと「アイテム込みスコア」が上がります。実力を測る「アイテムなしスコア」も別途あわせて記録されます。</div>
+        </div>
+        <button class="btn" onclick="startQuest('practice')">練習モード (リボルバー駆動)</button>
+        <button class="btn" style="background:var(--danger-color);" onclick="startQuest('test')">テストモード (本番)</button>
+        <button class="btn" style="background:#555;" onclick="changeScreen(readyBackScreen)">戻る</button>
+    </div>
+
+    <div id="screen-quiz" class="screen">
+        <div id="quiz-progress"></div>
+        <div id="combo-display"></div>
+        <div id="timer-bar-container"><div id="timer-bar"></div></div>
+        <div id="word-display">apple</div>
+        <div id="audio-row">
+            <button type="button" class="btn audio-btn" id="btn-word-audio" onclick="playAudio('word')">🔊 単語</button>
+            <button type="button" class="btn audio-btn" id="btn-sentence-audio" onclick="playAudio('sentence')">💬 例文</button>
+        </div>
+        <div id="quiz-choices" class="grid"></div>
+    </div>
+
+    <div id="screen-result" class="screen">
+        <h2>リザルト</h2>
+        <div class="stats-box" style="font-size:18px; text-align:center;">
+            <div id="res-mode"></div>
+            <div style="margin:10px 0;">獲得スコア（アイテム込み）: <span id="res-score" style="color:var(--secondary-color); font-weight:bold;">0</span> 点</div>
+            <div style="margin:4px 0 10px; font-size:13px; color:#ccc;">アイテムなしの場合のスコア: <span id="res-score-raw" style="font-weight:bold;">0</span> 点</div>
+            <div style="margin:10px 0;">獲得ポイント: +<span id="res-pt" style="color:var(--success-color); font-weight:bold;">0</span> pt</div>
+            <div id="res-record" style="color:var(--danger-color); font-weight:bold; display:none; margin:10px 0;">🎉 NEW RECORD! 🎉</div>
+            <div id="res-badge" style="color:var(--secondary-color); font-weight:bold; display:none; margin:10px 0;">🏅 Unitコンプリート！</div>
+            <div id="res-items" style="font-size:13px; color:#aaa; margin-top:10px;"></div>
+        </div>
+        <button class="btn" onclick="changeScreen('screen-home')">拠点へ戻る</button>
+    </div>
+
+    <div id="screen-collection" class="screen">
+        <h2>🏅 バッジコレクション</h2>
+        <div class="scroll-list" id="collection-list"></div>
+        <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">戻る</button>
+    </div>
+
+    <div id="screen-records" class="screen">
+        <h2>📊 自分の記録</h2>
+        <div class="scroll-list">
+            <div class="stats-box">
+                <h3 style="margin-bottom:8px; color:var(--secondary-color);">🏆 ハイスコア記録</h3>
+                <div id="record-highscore"></div>
+            </div>
+            <div class="stats-box">
+                <h3 style="margin-bottom:8px; color:var(--secondary-color);">📈 プレイ回数</h3>
+                <div id="record-playcounts"></div>
+            </div>
+        </div>
+        <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">戻る</button>
+    </div>
+
+    <div id="screen-gacha" class="screen">
+        <h2>✨ ガチャ・ショップ ✨</h2>
+        <div class="stats-box" style="text-align:center;">💎 所持ポイント: <span id="gacha-points">0</span> pt</div>
+        <div id="gacha-stage">
+            <div id="capsule-wrap">
+                <div id="capsule">
+                    <div class="capsule-half capsule-top"></div>
+                    <div class="capsule-half capsule-bottom"></div>
+                    <div class="capsule-shine"></div>
+                </div>
+            </div>
+            <div id="gacha-result" class="hidden">
+                <div id="gacha-result-icon">🎁</div>
+                <div id="gacha-result-name"></div>
+                <div id="gacha-result-desc"></div>
+            </div>
+        </div>
+        <button class="btn" id="gacha-draw-btn" style="background-color: var(--secondary-color); color:#1a1a2e;" onclick="drawGacha()">ガチャを引く (50pt)</button>
+        <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">拠点へ戻る</button>
+    </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+// ===== 英単語クエスト ver.0.3 =====
+// 単語データは data.js（build_data.py が NH_LIST から生成）の courseData を使う。
+
+const GRADES = ["中学1年", "中学2年", "中学3年"];
+const MAX_EQUIPPED_ITEMS = 3;
+const QUESTIONS_PER_QUEST = 10;
+const BASE_TIME_LIMIT_MS = 6000;
+const PRACTICE_SCORE_RATE = 0.5;          // 練習モードは合計を半分に換算
+const AUDIO_DIR = { word: "voice/word/", sentence: "voice/sentence/" };
+
+/* ---- Googleスプレッドシート連携設定 ---- */
+const SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzdAwrukRfx-i_5lIgkHW4JiveZQtVTFJoryuBqshJ4KDXWUhCCbbfi_Xhjspek7y9D6A/exec"; // 例: https://script.google.com/macros/s/.../exec
+const SHEET_SECRET = "TOMATO03"; // Apps Script側の PUBLIC_SECRET と完全一致させる（管理者用のADMIN_SECRETとは別の値）
+
+let currentStudent = null;
+
+/* ---- 日本時間(JST, UTC+9)固定でタイムスタンプを扱うヘルパー ---- */
+/* 生徒の端末のタイムゾーン設定に関わらず、常に日本時間で記録するため固定オフセットで計算する */
+function jstDateStringFromMs(ms) {
+    const d = new Date(ms + 9 * 3600 * 1000);
+    const pad = n => String(n).padStart(2, "0");
+    return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate());
+}
+function todayJstDateString() { return jstDateStringFromMs(Date.now()); }
+function nowJstISOString() {
+    const d = new Date(Date.now() + 9 * 3600 * 1000);
+    const pad = n => String(n).padStart(2, "0");
+    return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate()) + "T" +
+        pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + "+09:00";
+}
+
+/* ---- JSONPでスプレッドシートを呼び出す共通関数 ---- */
+let jsonpCounter = 0;
+function jsonpRequest(params, timeoutMs) {
+    return new Promise((resolve, reject) => {
+        jsonpCounter++;
+        const cbName = "jsonp_cb_" + jsonpCounter;
+        const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, timeoutMs || 8000);
+        function cleanup() {
+            delete window[cbName];
+            if (script.parentNode) script.parentNode.removeChild(script);
+            clearTimeout(timer);
+        }
+        window[cbName] = function (data) { cleanup(); resolve(data); };
+        const query = Object.assign({ secret: SHEET_SECRET, callback: cbName }, params);
+        const qs = Object.keys(query).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(query[k])).join("&");
+        const script = document.createElement("script");
+        script.src = SHEET_WEBAPP_URL + "?" + qs;
+        script.onerror = () => { cleanup(); reject(new Error("network")); };
+        document.body.appendChild(script);
+    });
+}
+
+function sendToSheet(payload) {
+    try {
+        fetch(SHEET_WEBAPP_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(Object.assign({ secret: SHEET_SECRET }, payload))
+        }).catch(function () { /* 送信失敗してもゲーム進行には影響させない */ });
+    } catch (e) { /* no-op */ }
+}
+
+/* ---- 進捗（ポイント・アイテム・バッジ等）はスプレッドシートを正として管理する ---- */
+function loadStateFromSheet(number) {
+    return jsonpRequest({ action: "loadState", number: number }, 10000);
+}
+
+function pushStateToSheet() {
+    if (!currentStudent) return;
+    sendToSheet({
+        action: "saveState",
+        studentNumber: currentStudent.number,
+        name: currentStudent.name,
+        state: JSON.stringify(userLog),
+        updatedAt: nowJstISOString()
+    });
+}
+
+/* ---- ピックアップ単元（校舎・学年ごとに管理画面から設定されたおすすめ単元） ---- */
+let PICKUPS = [];
+const PICKUP_CACHE_KEY = "eq_pickups_cache";
+
+function loadPickupsFromSheet() {
+    return jsonpRequest({ action: "pickups" }, 8000).then(res => {
+        if (res && res.result === "success" && Array.isArray(res.pickups)) {
+            PICKUPS = res.pickups;
+            try { localStorage.setItem(PICKUP_CACHE_KEY, JSON.stringify(PICKUPS)); } catch (e) { /* 保存できなくても続行 */ }
+        }
+    }).catch(() => { /* 通信できない時はキャッシュのまま */ });
+}
+
+function loadPickupsFromCache() {
+    try {
+        const raw = localStorage.getItem(PICKUP_CACHE_KEY);
+        if (raw) PICKUPS = JSON.parse(raw) || [];
+    } catch (e) { PICKUPS = []; }
+}
+
+function buildPickupList() {
+    const box = document.getElementById("pickup-box");
+    const list = document.getElementById("pickup-list");
+    list.innerHTML = "";
+    if (!currentStudent) { box.style.display = "none"; return; }
+
+    const school = currentStudent.school || "";
+    const grade = currentStudent.grade || "";
+    const items = PICKUPS.filter(p => {
+        if (p.school && p.school !== school) return false;   // 校舎が空欄なら全校舎共通
+        if (p.grade && p.grade !== grade) return false;      // 学年が空欄なら全学年共通
+        // data.js に存在しない単元は表示しない（設定ミス・単語データ更新への保険）
+        return courseData[p.unit] && courseData[p.unit][p.courseGrade];
+    });
+
+    if (items.length === 0) { box.style.display = "none"; return; }
+
+    items.forEach(p => {
+        const words = wordsOf(p.unit, p.courseGrade);
+        const gold = getGoldCount(p.unit, p.courseGrade);
+        const card = document.createElement("div");
+        card.className = "unit-card";
+        card.innerHTML = `
+            <div style="flex:1;">
+                <div>${p.unit}<span class="badge-tag" style="background:var(--secondary-color); color:#1a1a2e;">おすすめ</span></div>
+                <div class="meta">${p.courseGrade} ・ ${words.length} 語 ・ ゴールド ${gold}/${words.length}</div>
+                <div class="progress-track"><div class="progress-fill" style="width:${gold / words.length * 100}%;"></div></div>
+            </div>
+            <div style="margin-left:10px;">▶</div>`;
+        card.onclick = () => {
+            selectedGrade = p.courseGrade;
+            selectedUnit = p.unit;
+            readyBackScreen = "screen-home";
+            setupReadyScreen();
+        };
+        list.appendChild(card);
+    });
+    box.style.display = "block";
+}
+
+function submitLogin() {
+    const number = (document.getElementById("loginNumber").value || "").trim();
+    const passcode = (document.getElementById("loginPass").value || "").trim();
+    const err = document.getElementById("loginError");
+    err.innerText = "";
+    if (!number || !passcode) {
+        err.innerText = "生徒番号と合言葉を入力してください";
+        return;
+    }
+
+    const loginBtn = document.getElementById("loginBtn");
+    loginBtn.disabled = true;
+    loginBtn.innerText = "確認中…";
+
+    jsonpRequest({ action: "login", number: number, passcode: passcode }, 10000).then(res => {
+        if (!res || res.result !== "success" || !res.student) {
+            loginBtn.disabled = false;
+            loginBtn.innerText = "ログイン";
+            err.innerText = "生徒番号または合言葉が違います";
+            return;
+        }
+        proceedLogin(res.student);
+    }).catch(() => {
+        loginBtn.disabled = false;
+        loginBtn.innerText = "ログイン";
+        err.innerText = "通信できませんでした。電波の良い場所で再度お試しください";
+    });
+}
+
+function proceedLogin(student) {
+    currentStudent = student;
+    SAVE_KEY = "eq_user_log_" + student.number;
+    loadLog(); // 端末内キャッシュをひとまず読み込む（通信できない時の保険）
+
+    const loginBtn = document.getElementById("loginBtn");
+    loginBtn.disabled = true;
+    loginBtn.innerText = "同期中…";
+
+    loadPickupsFromCache(); // 通信できない時のためにまず端末内キャッシュを読む
+
+    Promise.all([
+        loadStateFromSheet(student.number).then(res => {
+            if (res && res.result === "success" && res.state) {
+                try { userLog = Object.assign(userLog, JSON.parse(res.state)); }
+                catch (e) { /* 保存データが壊れていた場合は端末内キャッシュのまま続行 */ }
+            }
+        }).catch(() => { /* 通信失敗時は端末内キャッシュのまま続行 */ }),
+        loadPickupsFromSheet()
+    ]).then(() => {
+        loginBtn.disabled = false;
+        loginBtn.innerText = "ログイン";
+        checkLogin();
+        updateHomeStats();
+        buildGradeTopList();
+        buildPickupList();
+        changeScreen("screen-home");
+    });
+}
+
+let userLog = {
+    loginStreak: 1,
+    lastLoginDate: "",
+    points: 100,
+    weeklyHighScore: 0,
+    inventory: [],
+    wordStatuses: {},
+    badges: {},
+    highScoreRecord: null,
+    playLog: []
+};
+
+let selectedGrade = "";
+let selectedUnit = "";
+let readyBackScreen = "screen-unit"; // クエスト準備画面の「戻る」先（ピックアップから来た時はホームへ）
+let currentMode = "";        // "practice" | "test"
+let quizWords = [];
+let currentQuizIdx = 0;
+let currentCombo = 0;
+let totalScore = 0;      // アイテム込みの最終スコア
+let totalScoreRaw = 0;   // アイテム(boost/injector/multiplier/delay)の効果を除いたスコア
+let questionStartTime = 0;
+let timerInterval = null;
+let advanceTimeout = null;
+let activeItems = [];
+let answerLocked = false;
+let saveWarned = false;
+
+// ---------- 保存（失敗してもアプリを止めない） ----------
+// localStorage → sessionStorage の順に使える保存先を探す（cookie は4KB上限で進捗が入らない）。
+// 埋め込み(iframe)やプライベートモードでは localStorage が拒否されることがある。
+let SAVE_KEY = "eq_user_log";
+const storageBackends = [
+    { name: "localStorage",   get: () => localStorage.getItem(SAVE_KEY),   set: v => localStorage.setItem(SAVE_KEY, v) },
+    { name: "sessionStorage", get: () => sessionStorage.getItem(SAVE_KEY), set: v => sessionStorage.setItem(SAVE_KEY, v) },
+];
+let storage = null;
+let lastStorageError = "";
+
+function pickStorage() {
+    for (const b of storageBackends) {
+        try { b.set(b.get() || ""); return b; } catch (e) { lastStorageError = b.name + ": " + (e && e.name) + " " + (e && e.message); }
+    }
+    return null;
+}
+
+function saveLog() {
+    const json = JSON.stringify(userLog);
+    if (!storage) storage = pickStorage();
+    try {
+        storage.set(json);
+        return;
+    } catch (e) {
+        // 今の保存先が使えなくなった。別の保存先を探してもう一度だけ試す
+        storage = pickStorage();
+        try { storage.set(json); return; } catch (e2) { storage = null; }
+    }
+    if (!saveWarned) {
+        saveWarned = true;
+        const warn = document.getElementById("save-warn");
+        warn.style.display = "block";
+        warn.innerText += "\n[" + lastStorageError + " / " + navigator.userAgent.replace(/^.*\) /, "") + "]";
+    }
+}
+
+function loadLog() {
+    storage = pickStorage();
+    const order = storage ? [storage].concat(storageBackends.filter(b => b !== storage)) : storageBackends;
+    for (const b of order) {
+        try {
+            const raw = b.get();
+            if (raw) { userLog = Object.assign(userLog, JSON.parse(raw)); return; }
+        } catch (e) { /* 次の候補へ */ }
+    }
+}
+
+function checkLogin() {
+    const today = todayJstDateString();
+    if (userLog.lastLoginDate === today) return;
+    if (userLog.lastLoginDate) {
+        const yesterday = jstDateStringFromMs(Date.now() - 24 * 3600 * 1000);
+        userLog.loginStreak = userLog.lastLoginDate === yesterday ? userLog.loginStreak + 1 : 1;
+    }
+    userLog.lastLoginDate = today;
+    saveLog();
+    pushStateToSheet();
+}
+
+// ---------- データ参照 ----------
+function unitsOfGrade(grade) {
+    return Object.keys(courseData).filter(u => courseData[u][grade]);
+}
+
+function wordsOf(unit, grade) {
+    return courseData[unit][grade];
+}
+
+function totalWordCount() {
+    let n = 0;
+    for (const u in courseData) for (const g in courseData[u]) n += courseData[u][g].length;
+    return n;
+}
+
+function isGold(wordId) {
+    const s = userLog.wordStatuses[wordId];
+    return !!s && s.heat === 0 && s.lastTime > 0;
+}
+
+function getGoldCount(unit, grade) {
+    return wordsOf(unit, grade).filter(w => isGold(w.id)).length;
+}
+
+function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+// ---------- 画面 ----------
+function changeScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+    if (id !== "screen-quiz") stopAudio();
+    if (id === "screen-home") buildPickupList(); // ゴールド語数などの進捗を反映し直す
+    if (id === "screen-collection") buildCollectionList();
+    if (id === "screen-records") buildRecordsScreen();
+}
+
+function updateHomeStats() {
+    document.getElementById("stat-login").innerText = userLog.loginStreak;
+    document.getElementById("stat-highscore").innerText = userLog.weeklyHighScore;
+    document.getElementById("stat-points").innerText = userLog.points;
+    document.getElementById("stat-totalwords").innerText = totalWordCount();
+}
+
+function buildGradeTopList() {
+    const list = document.getElementById("gradeTop-list");
+    list.innerHTML = "";
+    GRADES.forEach(grade => {
+        const units = unitsOfGrade(grade);
+        const count = units.reduce((n, u) => n + wordsOf(u, grade).length, 0);
+        const card = document.createElement("div");
+        card.className = "unit-card";
+        card.innerHTML = `<div><div>${grade}</div><div class="meta">${units.length} Unit ・ ${count} 語</div></div><div>▶</div>`;
+        card.onclick = () => { selectedGrade = grade; buildUnitList(); changeScreen("screen-unit"); };
+        list.appendChild(card);
+    });
+}
+
+function buildUnitList() {
+    document.getElementById("unit-screen-title").innerText = `ステージ選択（${selectedGrade}）`;
+    const list = document.getElementById("unit-list");
+    list.innerHTML = "";
+    unitsOfGrade(selectedGrade).forEach(unit => {
+        const words = wordsOf(unit, selectedGrade);
+        const gold = getGoldCount(unit, selectedGrade);
+        const complete = gold === words.length;
+        const card = document.createElement("div");
+        card.className = "unit-card";
+        card.innerHTML = `
+            <div style="flex:1;">
+                <div>${unit}${complete ? '<span class="badge-tag gold">コンプリート</span>' : ""}</div>
+                <div class="meta">${words.length} 語 ・ ゴールド ${gold}/${words.length}</div>
+                <div class="progress-track"><div class="progress-fill" style="width:${gold / words.length * 100}%;"></div></div>
+            </div>
+            <div style="margin-left:10px;">▶</div>`;
+        card.onclick = () => { selectedUnit = unit; readyBackScreen = "screen-unit"; setupReadyScreen(); };
+        list.appendChild(card);
+    });
+}
+
+function setupReadyScreen() {
+    const words = wordsOf(selectedUnit, selectedGrade);
+    const gold = getGoldCount(selectedUnit, selectedGrade);
+    document.getElementById("ready-info").innerText = `${selectedUnit} [${selectedGrade}]`;
+    document.getElementById("ready-progress").innerHTML = `単語数: ${words.length} 語　/　ゴールド単語: ${gold} 語`;
+    buildItemChecklist();
+    changeScreen("screen-ready");
+}
+
+// ---------- アイテム ----------
+function buildItemChecklist() {
+    const box = document.getElementById("item-checklist");
+    box.innerHTML = "";
+    if (userLog.inventory.length === 0) {
+        box.innerHTML = '<div style="font-size:13px; color:#888;">所持アイテムがありません（ガチャで入手できます）</div>';
+        return;
+    }
+    userLog.inventory.forEach((item, idx) => {
+        const label = document.createElement("label");
+        label.style.cssText = "display:flex; align-items:center; gap:8px; padding:8px 6px; border-bottom:1px solid rgba(255,255,255,0.08); font-size:14px;";
+        label.innerHTML = `<input type="checkbox" data-idx="${idx}" style="width:18px; height:18px;"> <span>${item.name}</span>`;
+        label.querySelector("input").onchange = onItemCheckChange;
+        box.appendChild(label);
+    });
+}
+
+function onItemCheckChange() {
+    const boxes = document.querySelectorAll('#item-checklist input[type="checkbox"]');
+    const checked = Array.from(boxes).filter(b => b.checked).length;
+    boxes.forEach(b => { if (!b.checked) b.disabled = checked >= MAX_EQUIPPED_ITEMS; });
+}
+
+function getSelectedItemIndexes() {
+    const boxes = document.querySelectorAll('#item-checklist input[type="checkbox"]:checked');
+    return Array.from(boxes).map(b => parseInt(b.dataset.idx, 10));
+}
+
+function sumItemValue(type) {
+    return activeItems.filter(i => i.type === type).reduce((n, i) => n + i.value, 0);
+}
+
+function multiplyItemValue(type) {
+    const items = activeItems.filter(i => i.type === type);
+    return items.length === 0 ? 1 : items.reduce((n, i) => n * i.value, 1);
+}
+
+// ---------- ガチャ ----------
+function openGachaScreen() {
+    document.getElementById("gacha-points").innerText = userLog.points;
+    const capsule = document.getElementById("capsule");
+    capsule.className = "";
+    capsule.style.display = "block";
+    document.getElementById("gacha-result").className = "hidden";
+    const btn = document.getElementById("gacha-draw-btn");
+    btn.disabled = false;
+    btn.innerText = "ガチャを引く (50pt)";
+    changeScreen("screen-gacha");
+}
+
+function rollGachaItem() {
+    const types = ["boost", "injector", "multiplier", "delay"];
+    const type = types[Math.floor(Math.random() * types.length)];
+    if (type === "boost") {
+        const v = 10 + 10 * Math.floor(Math.random() * 10);
+        return { type, value: v, icon: "💥", name: "ブースト・コア", desc: `1問の基礎点に +${v}点` };
+    }
+    if (type === "injector") {
+        const v = 50 + 50 * Math.floor(Math.random() * 10);
+        return { type, value: v, icon: "🧪", name: "スコア・インジェクター", desc: `テスト終了時に合計 +${v}点` };
+    }
+    if (type === "multiplier") {
+        const v = parseFloat((1.1 + Math.random() * 1.4).toFixed(1));
+        return { type, value: v, icon: "🌟", name: "リミットブレイカー", desc: `最終合計スコアを ×${v}倍` };
+    }
+    const v = 3 + Math.floor(Math.random() * 8);
+    return { type, value: v, icon: "⏳", name: "タイム・ディレイ", desc: `制限時間を +${v}秒延長` };
+}
+
+function spawnBurstParticles() {
+    const stage = document.getElementById("gacha-stage");
+    const colors = ["#f5a623", "#4a90e2", "#e94560", "#ffffff", "#4caf50"];
+    for (let i = 0; i < 18; i++) {
+        const p = document.createElement("div");
+        p.className = "burst";
+        const angle = Math.PI * 2 * i / 18;
+        const dist = 60 + Math.random() * 50;
+        p.style.setProperty("--bx", Math.cos(angle) * dist + "px");
+        p.style.setProperty("--by", Math.sin(angle) * dist + "px");
+        p.style.left = "50%";
+        p.style.top = "50%";
+        p.style.background = colors[i % colors.length];
+        stage.appendChild(p);
+        requestAnimationFrame(() => p.classList.add("fly"));
+        setTimeout(() => p.remove(), 750);
+    }
+}
+
+function drawGacha() {
+    if (userLog.points < 50) { alert("ポイントが足りないぞ！"); return; }
+    userLog.points -= 50;
+    saveLog();
+    document.getElementById("gacha-points").innerText = userLog.points;
+    const btn = document.getElementById("gacha-draw-btn");
+    btn.disabled = true;
+    const capsule = document.getElementById("capsule");
+    const result = document.getElementById("gacha-result");
+    capsule.className = "";
+    capsule.style.display = "block";
+    result.className = "hidden";
+    capsule.classList.add("shaking");
+    setTimeout(() => {
+        capsule.classList.remove("shaking");
+        capsule.classList.add("popped");
+        spawnBurstParticles();
+        const item = rollGachaItem();
+        userLog.inventory.push({ type: item.type, value: item.value, name: `${item.name} (${item.desc})` });
+        saveLog();
+        updateHomeStats();
+        pushStateToSheet();
+        setTimeout(() => {
+            capsule.style.display = "none";
+            document.getElementById("gacha-result-icon").innerText = item.icon;
+            document.getElementById("gacha-result-name").innerText = item.name;
+            document.getElementById("gacha-result-desc").innerText = item.desc;
+            result.className = "show";
+            btn.disabled = false;
+            btn.innerText = "もう一度引く (50pt)";
+        }, 450);
+    }, 900);
+}
+
+// ---------- 出題 ----------
+function pickQuizWords(mode) {
+    const words = wordsOf(selectedUnit, selectedGrade).slice();
+    if (mode === "test") return shuffle(words).slice(0, QUESTIONS_PER_QUEST);
+
+    // 練習モード（リボルバー駆動）: 苦手×放置時間 の上位8語 + 残りからランダム
+    const now = Date.now();
+    const scored = words.map(w => {
+        const s = userLog.wordStatuses[w.id] || { heat: 0, lastTime: 0 };
+        return { w, score: s.heat * Math.max(now - s.lastTime, 1) };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const top = scored.slice(0, 8).map(x => x.w);
+    const rest = shuffle(scored.slice(8).map(x => x.w));
+    return top.concat(rest).slice(0, QUESTIONS_PER_QUEST);
+}
+
+function buildChoices(word) {
+    const sameUnit = wordsOf(selectedUnit, selectedGrade).filter(w => w.id !== word.id);
+    const choices = [word.japanese];
+    const add = w => { if (choices.length < 4 && !choices.includes(w.japanese)) choices.push(w.japanese); };
+    shuffle(sameUnit).forEach(add);
+    if (choices.length < 4) {
+        let others = [];
+        unitsOfGrade(selectedGrade).forEach(u => { if (u !== selectedUnit) others = others.concat(wordsOf(u, selectedGrade)); });
+        shuffle(others).forEach(add);
+    }
+    while (choices.length < 4) choices.push("（補充語なし）" + choices.length);
+    return shuffle(choices);
+}
+
+function startQuest(mode) {
+    currentMode = mode;
+    currentQuizIdx = 0;
+    currentCombo = 0;
+    totalScore = 0;
+    totalScoreRaw = 0;
+    answerLocked = false;
+    clearTimeout(advanceTimeout);
+    clearInterval(timerInterval);
+
+    // 装備アイテムは出撃時にインベントリから消費（後ろから splice して index ずれを防ぐ）
+    const idxs = getSelectedItemIndexes().sort((a, b) => b - a);
+    activeItems = idxs.map(i => userLog.inventory.splice(i, 1)[0]);
+    userLog.playLog.push({ grade: selectedGrade, mode, timestamp: Date.now() });
+    saveLog();
+
+    quizWords = pickQuizWords(mode);
+    if (quizWords.length === 0) { alert("問題データがありません"); return; }
+    changeScreen("screen-quiz");
+    nextQuestion();
+}
+
+function getTimeLimit() {
+    return BASE_TIME_LIMIT_MS + 1000 * sumItemValue("delay");
+}
+
+function nextQuestion() {
+    answerLocked = false;
+    stopAudio();
+    if (currentQuizIdx >= quizWords.length) { endQuest(); return; }
+
+    const word = quizWords[currentQuizIdx];
+    document.getElementById("quiz-progress").innerText = `第 ${currentQuizIdx + 1} / ${quizWords.length} 問`;
+    document.getElementById("word-display").innerText = word.english;
+    document.getElementById("combo-display").innerText = currentCombo > 0 ? `${currentCombo} COMBO!` : "";
+    setupAudioButtons(word);
+
+    const box = document.getElementById("quiz-choices");
+    box.innerHTML = "";
+    buildChoices(word).forEach(text => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn choice-btn";
+        btn.innerText = text;
+        btn.onclick = () => handleAnswer(text === word.japanese, btn, word);
+        box.appendChild(btn);
+    });
+
+    questionStartTime = performance.now();
+    clearInterval(timerInterval);
+    const track = document.getElementById("timer-bar-container");
+    const bar = document.getElementById("timer-bar");
+    if (currentMode === "practice") { track.style.display = "none"; return; }
+
+    track.style.display = "block";
+    const limit = getTimeLimit();
+    bar.style.width = "100%";
+    timerInterval = setInterval(() => {
+        const elapsed = performance.now() - questionStartTime;
+        bar.style.width = Math.max(0, (limit - elapsed) / limit * 100) + "%";
+        if (elapsed >= limit) { clearInterval(timerInterval); handleAnswer(false, null, word); }
+    }, 100);
+}
+
+function questionScore(elapsedMs) {
+    const base = 100 + sumItemValue("boost");
+    const limit = getTimeLimit();
+    const timeFactor = currentMode === "test" ? Math.max((limit - elapsedMs) / limit, 0.01) : 1.0;
+    const comboRate = currentCombo >= 10 ? 1.5 : currentCombo >= 5 ? 1.2 : 1.0;
+    const loginRate = userLog.loginStreak >= 7 ? 1.1 : userLog.loginStreak >= 3 ? 1.05 : 1.0;
+    return Math.floor(base * timeFactor * comboRate * loginRate);
+}
+
+// アイテム(boost=加点／delay=時間延長)の効果を除いた「素の」スコア。コンボ・ログインボーナスは実力分なのでそのまま反映する
+function questionScoreRaw(elapsedMs) {
+    const base = 100;
+    const limit = BASE_TIME_LIMIT_MS;
+    const timeFactor = currentMode === "test" ? Math.max((limit - elapsedMs) / limit, 0.01) : 1.0;
+    const comboRate = currentCombo >= 10 ? 1.5 : currentCombo >= 5 ? 1.2 : 1.0;
+    const loginRate = userLog.loginStreak >= 7 ? 1.1 : userLog.loginStreak >= 3 ? 1.05 : 1.0;
+    return Math.floor(base * timeFactor * comboRate * loginRate);
+}
+
+function handleAnswer(correct, btn, word) {
+    if (answerLocked) return;
+    answerLocked = true;
+    clearInterval(timerInterval);
+    const elapsed = performance.now() - questionStartTime;
+
+    // 進行を最優先で予約。以降で何かが失敗しても次の問題へ進む
+    advanceTimeout = setTimeout(() => { currentQuizIdx++; nextQuestion(); }, correct ? 350 : 900);
+
+    if (btn) btn.classList.add(correct ? "correct-flash" : "wrong-flash");
+    const status = userLog.wordStatuses[word.id] || (userLog.wordStatuses[word.id] = { heat: 0, lastTime: 0 });
+    if (correct) {
+        currentCombo++;
+        totalScore += questionScore(elapsed);
+        totalScoreRaw += questionScoreRaw(elapsed);
+        status.heat = Math.max(0, status.heat - 1);
+        if (elapsed > 5000) status.heat += 0.5;
+    } else {
+        currentCombo = 0;
+        status.heat += 2;
+    }
+    status.lastTime = Date.now();
+    saveLog();
+}
+
+function checkUnitBadge() {
+    const words = wordsOf(selectedUnit, selectedGrade);
+    const gold = words.filter(w => isGold(w.id)).length;
+    const key = `${selectedGrade}::${selectedUnit}`;
+    if (gold !== words.length || userLog.badges[key]) return false;
+    userLog.badges[key] = { earnedAt: Date.now() };
+    saveLog();
+    return true;
+}
+
+function endQuest() {
+    clearInterval(timerInterval);
+    changeScreen("screen-result");
+    totalScore += sumItemValue("injector");
+    totalScore = Math.floor(totalScore * multiplyItemValue("multiplier"));
+    if (currentMode === "practice") totalScore = Math.floor(totalScore * PRACTICE_SCORE_RATE);
+    // totalScoreRaw にはinjector加算・multiplier倍率は適用しない（=アイテムなしのスコア）
+    if (currentMode === "practice") totalScoreRaw = Math.floor(totalScoreRaw * PRACTICE_SCORE_RATE);
+
+    const isTest = currentMode === "test";
+    const earned = isTest ? Math.floor(totalScore / 100) : 0;
+    userLog.points += earned;
+    document.getElementById("res-mode").innerText = isTest ? "テストモード" : "練習モード（テストの半分に換算・ポイントなし）";
+    document.getElementById("res-score").innerText = totalScore;
+    document.getElementById("res-score-raw").innerText = totalScoreRaw;
+    document.getElementById("res-pt").innerText = earned;
+
+    const itemNames = activeItems.map(i => i.name);
+    document.getElementById("res-items").innerText = itemNames.length > 0 ? `使用アイテム: ${itemNames.join(" / ")}` : "アイテムは使用しませんでした";
+
+    const newRecord = isTest && totalScore > userLog.weeklyHighScore;
+    if (newRecord) {
+        userLog.weeklyHighScore = totalScore;
+        userLog.highScoreRecord = { score: totalScore, grade: selectedGrade, unit: selectedUnit, items: itemNames, achievedAt: Date.now() };
+    }
+    document.getElementById("res-record").style.display = newRecord ? "block" : "none";
+    document.getElementById("res-badge").style.display = checkUnitBadge() ? "block" : "none";
+    saveLog();
+    updateHomeStats();
+
+    if (currentStudent) {
+        pushStateToSheet();
+
+        sendToSheet({
+            action: "saveSession",
+            studentNumber: currentStudent.number,
+            name: currentStudent.name,
+            studiedAt: nowJstISOString(),
+            mode: currentMode,
+            grade: selectedGrade,
+            unit: selectedUnit,
+            questionCount: quizWords.length,
+            score: totalScore,
+            scoreRaw: totalScoreRaw,
+            gainedPoints: earned
+        });
+
+        const weakWords = wordsOf(selectedUnit, selectedGrade)
+            .map(w => ({ id: w.id, english: w.english, heat: (userLog.wordStatuses[w.id] || {}).heat || 0 }))
+            .filter(w => w.heat > 0);
+        if (weakWords.length > 0) {
+            sendToSheet({
+                action: "saveWeakWords",
+                studentNumber: currentStudent.number,
+                name: currentStudent.name,
+                updatedAt: nowJstISOString(),
+                words: weakWords
+            });
+        }
+    }
+}
+
+// ---------- 音声 ----------
+const audioPlayer = new Audio();
+let audioKind = null;
+
+function audioSrc(word, kind) {
+    const file = kind === "word" ? word.wordVoice : word.voice;
+    return file ? AUDIO_DIR[kind] + encodeURIComponent(file) : "";
+}
+
+function setupAudioButtons(word) {
+    document.getElementById("btn-word-audio").classList.toggle("unavailable", !word.wordVoice);
+    document.getElementById("btn-sentence-audio").classList.toggle("unavailable", !word.voice);
+    document.getElementById("btn-sentence-audio").title = word.sentence || "";
+}
+
+function stopAudio() {
+    audioPlayer.pause();
+    audioKind = null;
+    document.querySelectorAll(".audio-btn").forEach(b => b.classList.remove("playing"));
+}
+
+function playAudio(kind) {
+    const word = quizWords[currentQuizIdx];
+    if (!word) return;
+    const src = audioSrc(word, kind);
+    if (!src) return;
+    if (audioKind === kind && !audioPlayer.paused) { stopAudio(); return; }
+    stopAudio();
+    audioKind = kind;
+    const btnId = kind === "word" ? "btn-word-audio" : "btn-sentence-audio";
+    const btn = document.getElementById(btnId);
+    audioPlayer.src = src;
+    btn.classList.add("playing");
+    audioPlayer.onended = stopAudio;
+    audioPlayer.onerror = () => { stopAudio(); btn.classList.add("unavailable"); };
+    audioPlayer.play().catch(() => { stopAudio(); });
+}
+
+// ---------- コレクション・記録 ----------
+function buildCollectionList() {
+    const list = document.getElementById("collection-list");
+    list.innerHTML = "";
+    const keys = Object.keys(userLog.badges);
+    if (keys.length === 0) {
+        list.innerHTML = '<p style="text-align:center; color:#999;">まだバッジがありません。<br>Unit内の全単語を「ゴールド」にすると獲得できます。</p>';
+        return;
+    }
+    keys.forEach(key => {
+        const [grade, unit] = key.split("::");
+        const card = document.createElement("div");
+        card.className = "unit-card";
+        const date = new Date(userLog.badges[key].earnedAt).toLocaleDateString("ja-JP");
+        card.innerHTML = `<div>🏅 <strong>${unit}</strong><div class="meta">${grade} ・ 獲得日: ${date}</div></div>`;
+        list.appendChild(card);
+    });
+}
+
+function buildRecordsScreen() {
+    const hs = document.getElementById("record-highscore");
+    const rec = userLog.highScoreRecord;
+    if (rec) {
+        const when = new Date(rec.achievedAt).toLocaleString("ja-JP");
+        hs.innerHTML = `
+            <div style="font-size:22px; font-weight:bold; color:var(--secondary-color);">${rec.score} 点</div>
+            <div style="margin-top:6px;">📍 ${rec.unit}（${rec.grade}）</div>
+            <div style="margin-top:4px; font-size:13px; color:#ccc;">🎒 使用アイテム: ${rec.items.length > 0 ? rec.items.join(" / ") : "なし"}</div>
+            <div style="margin-top:4px; font-size:12px; color:#888;">達成日時: ${when}</div>`;
+    } else {
+        hs.innerHTML = '<p style="color:#999; margin:0;">まだテストモードのハイスコア記録がありません。</p>';
+    }
+
+    const log = userLog.playLog || [];
+    const now = Date.now();
+    const week = now - 7 * 24 * 3600 * 1000;
+    const month = now - 30 * 24 * 3600 * 1000;
+    const row = (label, n, extra = "") =>
+        `<div style="display:flex; justify-content:space-between; padding:4px 0; ${extra}"><span>${label}</span><span style="font-weight:bold;">${n} 回</span></div>`;
+    let byGrade = "";
+    GRADES.forEach(g => {
+        const n = log.filter(e => e.grade === g).length;
+        byGrade += `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.08);"><span>${g}</span><span>${n} 回</span></div>`;
+    });
+    document.getElementById("record-playcounts").innerHTML =
+        row("合計プレイ回数", log.length) +
+        row("直近1週間", log.filter(e => e.timestamp >= week).length) +
+        row("直近1ヶ月", log.filter(e => e.timestamp >= month).length, "margin-bottom:8px;") +
+        `<div style="margin-top:6px; font-size:13px; color:#999;">学年別</div>` + byGrade;
+}
+
+// ---------- 起動 ----------
+// ログイン前に取得しておく共有データは無くなったため、起動時の通信は不要。
+// （生徒認証は login 実行時に1人分だけサーバーへ問い合わせる）
+</script>
+
+</body>
+</html>
