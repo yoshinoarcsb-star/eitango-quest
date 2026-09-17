@@ -290,23 +290,51 @@ function nowJstISOString() {
         pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + "+09:00";
 }
 
-/* ---- JSONPでスプレッドシートを呼び出す共通関数 ---- */
+/* ---- スプレッドシート読み出し共通関数 ----
+   まずfetch()で直接通信を試み、失敗した場合だけ<script>タグによるJSONP方式にフォールバックする。
+   一部の拡張機能・セキュリティソフトはどちらか片方の通信方式だけを狙い撃ちでブロックすることがあるため、
+   両対応にしておくことでブロックされにくくしている。 */
 let jsonpCounter = 0;
-function jsonpRequest(params, timeoutMs) {
+
+function requestSheet(params, timeoutMs) {
+    const ms = timeoutMs || 8000;
+    return fetchSheet_(params, ms).catch(() => jsonpFallback_(params, ms));
+}
+
+function buildQuery_(params, extra) {
+    const query = Object.assign({ secret: SHEET_SECRET }, params, extra || {});
+    return Object.keys(query).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(query[k])).join("&");
+}
+
+function fetchSheet_(params, timeoutMs) {
+    const controller = ("AbortController" in window) ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    return fetch(SHEET_WEBAPP_URL + "?" + buildQuery_(params), {
+        method: "GET",
+        signal: controller ? controller.signal : undefined
+    }).then(res => {
+        if (timer) clearTimeout(timer);
+        if (!res.ok) throw new Error("http_" + res.status);
+        return res.text();
+    }).then(text => {
+        try { return JSON.parse(text); }
+        catch (e) { throw new Error("parse"); } // 認可画面のHTML等が返ってきた場合はJSONPにフォールバックさせる
+    }).catch(err => { if (timer) clearTimeout(timer); throw err; });
+}
+
+function jsonpFallback_(params, timeoutMs) {
     return new Promise((resolve, reject) => {
         jsonpCounter++;
         const cbName = "jsonp_cb_" + jsonpCounter;
-        const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, timeoutMs || 8000);
+        const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, timeoutMs);
         function cleanup() {
             delete window[cbName];
             if (script.parentNode) script.parentNode.removeChild(script);
             clearTimeout(timer);
         }
         window[cbName] = function (data) { cleanup(); resolve(data); };
-        const query = Object.assign({ secret: SHEET_SECRET, callback: cbName }, params);
-        const qs = Object.keys(query).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(query[k])).join("&");
         const script = document.createElement("script");
-        script.src = SHEET_WEBAPP_URL + "?" + qs;
+        script.src = SHEET_WEBAPP_URL + "?" + buildQuery_(params, { callback: cbName });
         script.onerror = () => { cleanup(); reject(new Error("network")); };
         document.body.appendChild(script);
     });
@@ -325,7 +353,7 @@ function sendToSheet(payload) {
 
 /* ---- 進捗（ポイント・アイテム・バッジ等）はスプレッドシートを正として管理する ---- */
 function loadStateFromSheet(number) {
-    return jsonpRequest({ action: "loadState", number: number }, 10000);
+    return requestSheet({ action: "loadState", number: number }, 10000);
 }
 
 function pushStateToSheet() {
@@ -344,7 +372,7 @@ let PICKUPS = [];
 const PICKUP_CACHE_KEY = "eq_pickups_cache";
 
 function loadPickupsFromSheet() {
-    return jsonpRequest({ action: "pickups" }, 8000).then(res => {
+    return requestSheet({ action: "pickups" }, 8000).then(res => {
         if (res && res.result === "success" && Array.isArray(res.pickups)) {
             PICKUPS = res.pickups;
             try { localStorage.setItem(PICKUP_CACHE_KEY, JSON.stringify(PICKUPS)); } catch (e) { /* 保存できなくても続行 */ }
@@ -413,7 +441,7 @@ function submitLogin() {
     loginBtn.disabled = true;
     loginBtn.innerText = "確認中…";
 
-    jsonpRequest({ action: "login", number: number, passcode: passcode }, 10000).then(res => {
+    requestSheet({ action: "login", number: number, passcode: passcode }, 10000).then(res => {
         if (!res || res.result !== "success" || !res.student) {
             loginBtn.disabled = false;
             loginBtn.innerText = "ログイン";
