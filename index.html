@@ -146,6 +146,15 @@
 
     <div id="screen-home" class="screen">
         <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.0.3</small></h1>
+        <div class="stats-box" style="font-size:12px; color:#aaa; text-align:center; padding:10px;">
+            <div>👤 ログイン中: <b id="stat-studentname" style="color:#fff;"></b>（<span id="stat-studentnumber"></span>番）</div>
+            <div style="margin-top:2px;"><span id="stat-studentschool"></span> ・ <span id="stat-studentgrade"></span></div>
+            <div style="margin-top:8px; padding-top:8px; border-top:1px solid #333;">
+                🔄 最終同期: <span id="stat-lastsync">未同期</span>
+            </div>
+            <button class="btn btn-sub" id="sync-btn" style="margin-top:6px; padding:6px; font-size:12px;" onclick="manualSync()">今すぐ同期を確認</button>
+            <div id="sync-msg" style="margin-top:4px; min-height:14px;"></div>
+        </div>
         <div class="stats-box">
             <div>🔥 連続ログイン: <span id="stat-login">1</span> 日</div>
             <div>🏆 今週のハイスコア: <span id="stat-highscore">0</span> 点</div>
@@ -231,6 +240,13 @@
                 <h3 style="margin-bottom:8px; color:var(--secondary-color);">📈 プレイ回数</h3>
                 <div id="record-playcounts"></div>
             </div>
+            <div class="stats-box">
+                <h3 style="margin-bottom:4px; color:var(--secondary-color);">🗄 サーバー上の実施記録（直近10件）</h3>
+                <div style="font-size:11px; color:#999; margin-bottom:8px;">スプレッドシートに実際に届いているかをここで確認できます。</div>
+                <div id="record-server-status" style="font-size:12px; color:#999; margin-bottom:6px;"></div>
+                <div id="record-server-list"></div>
+                <button class="btn btn-sub" style="margin-top:8px; padding:8px; font-size:13px;" onclick="loadServerRecords()">🔄 最新の記録を取得</button>
+            </div>
         </div>
         <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">戻る</button>
     </div>
@@ -290,51 +306,23 @@ function nowJstISOString() {
         pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + "+09:00";
 }
 
-/* ---- スプレッドシート読み出し共通関数 ----
-   まずfetch()で直接通信を試み、失敗した場合だけ<script>タグによるJSONP方式にフォールバックする。
-   一部の拡張機能・セキュリティソフトはどちらか片方の通信方式だけを狙い撃ちでブロックすることがあるため、
-   両対応にしておくことでブロックされにくくしている。 */
+/* ---- JSONPでスプレッドシートを呼び出す共通関数 ---- */
 let jsonpCounter = 0;
-
 function requestSheet(params, timeoutMs) {
-    const ms = timeoutMs || 8000;
-    return fetchSheet_(params, ms).catch(() => jsonpFallback_(params, ms));
-}
-
-function buildQuery_(params, extra) {
-    const query = Object.assign({ secret: SHEET_SECRET }, params, extra || {});
-    return Object.keys(query).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(query[k])).join("&");
-}
-
-function fetchSheet_(params, timeoutMs) {
-    const controller = ("AbortController" in window) ? new AbortController() : null;
-    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-    return fetch(SHEET_WEBAPP_URL + "?" + buildQuery_(params), {
-        method: "GET",
-        signal: controller ? controller.signal : undefined
-    }).then(res => {
-        if (timer) clearTimeout(timer);
-        if (!res.ok) throw new Error("http_" + res.status);
-        return res.text();
-    }).then(text => {
-        try { return JSON.parse(text); }
-        catch (e) { throw new Error("parse"); } // 認可画面のHTML等が返ってきた場合はJSONPにフォールバックさせる
-    }).catch(err => { if (timer) clearTimeout(timer); throw err; });
-}
-
-function jsonpFallback_(params, timeoutMs) {
     return new Promise((resolve, reject) => {
         jsonpCounter++;
         const cbName = "jsonp_cb_" + jsonpCounter;
-        const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, timeoutMs);
+        const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, timeoutMs || 8000);
         function cleanup() {
             delete window[cbName];
             if (script.parentNode) script.parentNode.removeChild(script);
             clearTimeout(timer);
         }
         window[cbName] = function (data) { cleanup(); resolve(data); };
+        const query = Object.assign({ secret: SHEET_SECRET, callback: cbName }, params);
+        const qs = Object.keys(query).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(query[k])).join("&");
         const script = document.createElement("script");
-        script.src = SHEET_WEBAPP_URL + "?" + buildQuery_(params, { callback: cbName });
+        script.src = SHEET_WEBAPP_URL + "?" + qs;
         script.onerror = () => { cleanup(); reject(new Error("network")); };
         document.body.appendChild(script);
     });
@@ -351,9 +339,20 @@ function sendToSheet(payload) {
     } catch (e) { /* no-op */ }
 }
 
-/* ---- 進捗（ポイント・アイテム・バッジ等）はスプレッドシートを正として管理する ---- */
+/* ---- 失敗しても自動で待って再試行する（Apps Scriptのコールドスタート・一時的な混雑対策） ----
+   「放置すればそのうち繋がる」性質の失敗に対して、ユーザーの手を止めずに裏側で再試行する。 */
+function requestSheetRetry(params, opts) {
+    const o = Object.assign({ timeoutMs: 8000, retries: 2, backoffMs: 2500 }, opts || {});
+    function attempt(n) {
+        return requestSheet(params, o.timeoutMs).catch(err => {
+            if (n >= o.retries) throw err;
+            return new Promise(resolve => setTimeout(resolve, o.backoffMs * (n + 1))).then(() => attempt(n + 1));
+        });
+    }
+    return attempt(0);
+}
 function loadStateFromSheet(number) {
-    return requestSheet({ action: "loadState", number: number }, 10000);
+    return requestSheetRetry({ action: "loadState", number: number }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 });
 }
 
 function pushStateToSheet() {
@@ -372,7 +371,7 @@ let PICKUPS = [];
 const PICKUP_CACHE_KEY = "eq_pickups_cache";
 
 function loadPickupsFromSheet() {
-    return requestSheet({ action: "pickups" }, 8000).then(res => {
+    return requestSheetRetry({ action: "pickups" }, { timeoutMs: 8000, retries: 2, backoffMs: 2000 }).then(res => {
         if (res && res.result === "success" && Array.isArray(res.pickups)) {
             PICKUPS = res.pickups;
             try { localStorage.setItem(PICKUP_CACHE_KEY, JSON.stringify(PICKUPS)); } catch (e) { /* 保存できなくても続行 */ }
@@ -441,7 +440,7 @@ function submitLogin() {
     loginBtn.disabled = true;
     loginBtn.innerText = "確認中…";
 
-    requestSheet({ action: "login", number: number, passcode: passcode }, 10000).then(res => {
+    requestSheetRetry({ action: "login", number: number, passcode: passcode }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 }).then(res => {
         if (!res || res.result !== "success" || !res.student) {
             loginBtn.disabled = false;
             loginBtn.innerText = "ログイン";
@@ -474,11 +473,15 @@ function proceedLogin(student) {
                 catch (e) { /* 保存データが壊れていた場合は端末内キャッシュのまま続行 */ }
             }
         }).catch(() => { /* 通信失敗時は端末内キャッシュのまま続行 */ }),
-        loadPickupsFromSheet()
+        // ページ読み込み時に先読みを開始済みならそれを待つだけにして、同時に2本目のリクエストを送らないようにする
+        pickupsReadyPromise || loadPickupsFromSheet()
     ]).then(() => {
         loginBtn.disabled = false;
         loginBtn.innerText = "ログイン";
+        lastSyncAt = new Date();
         checkLogin();
+        updateAccountInfo();
+        updateSyncDisplay();
         updateHomeStats();
         buildGradeTopList();
         buildPickupList();
@@ -622,6 +625,99 @@ function updateHomeStats() {
     document.getElementById("stat-highscore").innerText = userLog.weeklyHighScore;
     document.getElementById("stat-points").innerText = userLog.points;
     document.getElementById("stat-totalwords").innerText = totalWordCount();
+}
+
+/* ---- ログイン中アカウントの表示（別端末・別アカウントの取り違え防止） ---- */
+function updateAccountInfo() {
+    if (!currentStudent) return;
+    document.getElementById("stat-studentname").innerText = currentStudent.name || "";
+    document.getElementById("stat-studentnumber").innerText = currentStudent.number || "";
+    document.getElementById("stat-studentschool").innerText = currentStudent.school || "校舎未設定";
+    document.getElementById("stat-studentgrade").innerText = currentStudent.grade || "学年未設定";
+}
+
+/* ---- 接続状況の可視化 ---- */
+let lastSyncAt = null;
+
+function formatTimeHHMMSS(date) {
+    const h = String(date.getHours()).padStart(2, "0");
+    const m = String(date.getMinutes()).padStart(2, "0");
+    const s = String(date.getSeconds()).padStart(2, "0");
+    return `${h}:${m}:${s}`;
+}
+
+function updateSyncDisplay() {
+    const el = document.getElementById("stat-lastsync");
+    if (!el) return;
+    el.innerText = lastSyncAt ? formatTimeHHMMSS(lastSyncAt) : "未同期";
+}
+
+// 「今すぐ同期を確認」：現在の進捗を送信し、直後にサーバーから読み直すことで
+// 実際にサーバーと通信できているかをその場で確認する（送信の成否は仕組み上確認できないため、
+// 読み直しが成功するかどうかを接続確認の代わりとして使う）。
+function manualSync() {
+    if (!currentStudent) return;
+    const btn = document.getElementById("sync-btn");
+    const msg = document.getElementById("sync-msg");
+    btn.disabled = true;
+    btn.innerText = "確認中…";
+    msg.innerText = "";
+    pushStateToSheet();
+    requestSheetRetry({ action: "loadState", number: currentStudent.number }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 })
+        .then(res => {
+            if (!res || res.result !== "success") throw new Error("bad_response");
+            if (res.state) {
+                try { userLog = Object.assign(userLog, JSON.parse(res.state)); } catch (e) { /* 壊れていれば無視して続行 */ }
+            }
+            lastSyncAt = new Date();
+            updateSyncDisplay();
+            updateHomeStats();
+            buildPickupList();
+            msg.style.color = "#4caf50";
+            msg.innerText = "✅ サーバーと通信できました";
+        })
+        .catch(() => {
+            msg.style.color = "var(--danger-color)";
+            msg.innerText = "⚠ サーバーと通信できませんでした。電波の良い場所でもう一度お試しください";
+        })
+        .then(() => {
+            btn.disabled = false;
+            btn.innerText = "今すぐ同期を確認";
+        });
+}
+
+function escapeHtmlLocal(str) {
+    return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// 「自分の記録」画面から、実際にスプレッドシート(Sessions)に届いている直近の実施記録を取得して表示する。
+// ローカルキャッシュだけでなく、サーバー側に本当に保存されているかをここで確認できる。
+function loadServerRecords() {
+    if (!currentStudent) return;
+    const status = document.getElementById("record-server-status");
+    const list = document.getElementById("record-server-list");
+    status.style.color = "#999";
+    status.innerText = "取得中…";
+    list.innerHTML = "";
+    requestSheetRetry({ action: "records", number: currentStudent.number }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 })
+        .then(res => {
+            if (!res || res.result !== "success" || !Array.isArray(res.sessions)) throw new Error("bad_response");
+            const sessions = res.sessions;
+            status.style.color = "#999";
+            status.innerText = sessions.length > 0
+                ? `✅ サーバー上で ${sessions.length} 件を確認できました（新しい順）`
+                : "サーバー上にはまだ記録がありません";
+            list.innerHTML = sessions.map(s => `
+                <div style="border-bottom:1px solid #333; padding:6px 0; font-size:13px;">
+                    <div>${escapeHtmlLocal(s.studiedAt)}　${escapeHtmlLocal(s.unit)}（${escapeHtmlLocal(s.grade)}）</div>
+                    <div style="color:#999;">モード: ${escapeHtmlLocal(s.mode)}　スコア: ${escapeHtmlLocal(s.score)} 点　獲得pt: ${escapeHtmlLocal(s.gainedPoints)}</div>
+                </div>`).join("");
+        })
+        .catch(() => {
+            status.style.color = "var(--danger-color)";
+            status.innerText = "⚠ サーバーと通信できませんでした。電波の良い場所でもう一度お試しください";
+        });
 }
 
 function buildGradeTopList() {
@@ -1092,8 +1188,13 @@ function buildRecordsScreen() {
 }
 
 // ---------- 起動 ----------
-// ログイン前に取得しておく共有データは無くなったため、起動時の通信は不要。
-// （生徒認証は login 実行時に1人分だけサーバーへ問い合わせる）
+// ページが開かれた時点（＝ログイン番号を入力している間）に、裏側でApps Scriptを一度呼んでおく。
+// これにより、実際にログインボタンを押す頃にはコールドスタートの待ち時間を消化済みにできる。
+// ついでにピックアップ単元も先読みしておくので、ログイン完了後の通信を1本に減らせる。
+let pickupsReadyPromise = null;
+window.onload = function () {
+    pickupsReadyPromise = loadPickupsFromSheet();
+};
 </script>
 
 </body>
