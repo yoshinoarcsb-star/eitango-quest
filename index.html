@@ -310,7 +310,10 @@ const QUESTIONS_PER_QUEST = 10;
 const BASE_TIME_LIMIT_MS = 6000;
 const TYPING_TIME_LIMIT_MS = 10000; // タイピングは選択式より時間がかかるため長めに設定（★要件確認時に未指定だったための仮値。変更希望あれば調整可）
 const PRACTICE_SCORE_RATE = 0.5;          // 練習モードは合計を半分に換算
-const AUDIO_DIR = { word: "voice/word/", sentence: "voice/sentence/" };
+const AUDIO_DIR = {
+    word: "https://sakkrwfnaromqzlfgatr.supabase.co/storage/v1/object/public/voice/word/",
+    sentence: "https://sakkrwfnaromqzlfgatr.supabase.co/storage/v1/object/public/voice/sentence/"
+};
 
 /* ---- Supabase連携設定 ---- */
 const SUPABASE_FUNCTION_URL = "https://sakkrwfnaromqzlfgatr.supabase.co/functions/v1/smart-service";
