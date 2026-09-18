@@ -242,6 +242,10 @@
             <div id="res-badge" style="color:var(--secondary-color); font-weight:bold; display:none; margin:10px 0;">🏅 Unitコンプリート！</div>
             <div id="res-items" style="font-size:13px; color:#aaa; margin-top:10px;"></div>
         </div>
+        <div class="stats-box" id="res-missed-box" style="display:none;">
+            <h3 style="margin-bottom:8px; color:var(--danger-color);">📝 間違えた単語一覧</h3>
+            <div id="res-missed-list"></div>
+        </div>
         <button class="btn" onclick="changeScreen('screen-home')">拠点へ戻る</button>
     </div>
 
@@ -543,6 +547,7 @@ let currentQuizIdx = 0;
 let currentCombo = 0;
 let totalScore = 0;      // アイテム込みの最終スコア
 let totalScoreRaw = 0;   // アイテム(boost/injector/multiplier/delay)の効果を除いたスコア
+let missedWords = [];    // このクエスト中に一度でも間違えた単語（リザルトで一覧表示する）
 let questionStartTime = 0;
 let timerInterval = null;
 let advanceTimeout = null;
@@ -966,6 +971,7 @@ function startQuest(mode) {
     currentCombo = 0;
     totalScore = 0;
     totalScoreRaw = 0;
+    missedWords = [];
     answerLocked = false;
     clearTimeout(advanceTimeout);
     clearInterval(timerInterval);
@@ -1115,6 +1121,9 @@ function handleAnswer(correct, btn, word) {
     } else {
         currentCombo = 0;
         status.heat += 2;
+        if (!missedWords.some(w => w.id === word.id)) {
+            missedWords.push({ id: word.id, english: word.english, japanese: word.japanese });
+        }
     }
     status.lastTime = Date.now();
     saveLog();
@@ -1152,6 +1161,21 @@ function endQuest() {
 
     const itemNames = activeItems.map(i => i.name);
     document.getElementById("res-items").innerText = itemNames.length > 0 ? `使用アイテム: ${itemNames.join(" / ")}` : "アイテムは使用しませんでした";
+
+    const missedBox = document.getElementById("res-missed-box");
+    const missedList = document.getElementById("res-missed-list");
+    if (missedWords.length > 0) {
+        missedBox.style.display = "block";
+        missedList.innerHTML = missedWords.map(w =>
+            `<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.08);">
+                <span style="font-weight:bold;">${w.english}</span>
+                <span style="color:#ccc;">${w.japanese}</span>
+            </div>`
+        ).join("");
+    } else {
+        missedBox.style.display = "block";
+        missedList.innerHTML = '<p style="text-align:center; color:#999; margin:0;">🎉 全問正解でした！</p>';
+    }
 
     const newRecord = isTest && totalScore > userLog.weeklyHighScore;
     if (newRecord) {
