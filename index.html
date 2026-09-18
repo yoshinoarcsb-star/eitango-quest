@@ -154,6 +154,9 @@
             </div>
             <button class="btn btn-sub" id="sync-btn" style="margin-top:6px; padding:6px; font-size:12px;" onclick="manualSync()">今すぐ同期を確認</button>
             <div id="sync-msg" style="margin-top:4px; min-height:14px;"></div>
+            <div id="sync-warn" style="display:none; margin-top:8px; padding:8px; border-radius:6px; background:var(--danger-color); color:#fff; font-size:12px; text-align:left;">
+                ⚠ サーバーの進捗を取得できていません。今の状態でプレイしても記録は保存されません。「今すぐ同期を確認」を押すか、電波の良い場所で開き直してください。
+            </div>
         </div>
         <div class="stats-box">
             <div>🔥 連続ログイン: <span id="stat-login">1</span> 日</div>
@@ -290,6 +293,9 @@ const SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzdAwrukRfx-i_
 const SHEET_SECRET = "TOMATO03"; // Apps Script側の PUBLIC_SECRET と完全一致させる（管理者用のADMIN_SECRETとは別の値）
 
 let currentStudent = null;
+// サーバーから本当の進捗を読み込めた場合だけ true になる。
+// false のままでは pushStateToSheet() は一切送信しない（初期値やローカルキャッシュでの誤上書きを防ぐため）。
+let stateSyncOk = false;
 
 /* ---- 日本時間(JST, UTC+9)固定でタイムスタンプを扱うヘルパー ---- */
 /* 生徒の端末のタイムゾーン設定に関わらず、常に日本時間で記録するため固定オフセットで計算する */
@@ -357,6 +363,7 @@ function loadStateFromSheet(number) {
 
 function pushStateToSheet() {
     if (!currentStudent) return;
+    if (!stateSyncOk) return; // サーバーの本当の進捗をまだ確認できていないので、誤って上書きしないよう送信しない
     sendToSheet({
         action: "saveState",
         studentNumber: currentStudent.number,
@@ -466,22 +473,28 @@ function proceedLogin(student) {
 
     loadPickupsFromCache(); // 通信できない時のためにまず端末内キャッシュを読む
 
+    let stateLoadOk = false; // このログインでサーバーから正しく読み込めたか
     Promise.all([
         loadStateFromSheet(student.number).then(res => {
-            if (res && res.result === "success" && res.state) {
-                try { userLog = Object.assign(userLog, JSON.parse(res.state)); }
-                catch (e) { /* 保存データが壊れていた場合は端末内キャッシュのまま続行 */ }
+            if (res && res.result === "success") {
+                stateLoadOk = true; // 通信成功。res.stateがnullなのは「まだ記録が無い新規生徒」の正常なケース
+                if (res.state) {
+                    try { userLog = Object.assign(userLog, JSON.parse(res.state)); }
+                    catch (e) { stateLoadOk = false; /* 保存データが壊れていた場合は送信を止めて安全側に倒す */ }
+                }
             }
-        }).catch(() => { /* 通信失敗時は端末内キャッシュのまま続行 */ }),
+        }).catch(() => { /* 通信失敗。stateLoadOkはfalseのまま */ }),
         // ページ読み込み時に先読みを開始済みならそれを待つだけにして、同時に2本目のリクエストを送らないようにする
         pickupsReadyPromise || loadPickupsFromSheet()
     ]).then(() => {
+        stateSyncOk = stateLoadOk;
         loginBtn.disabled = false;
         loginBtn.innerText = "ログイン";
-        lastSyncAt = new Date();
-        checkLogin();
+        if (stateSyncOk) lastSyncAt = new Date();
+        checkLogin(); // 内部のpushStateToSheetは、stateSyncOkがfalseなら何もしない
         updateAccountInfo();
         updateSyncDisplay();
+        updateSyncWarning();
         updateHomeStats();
         buildGradeTopList();
         buildPickupList();
@@ -615,7 +628,7 @@ function changeScreen(id) {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     document.getElementById(id).classList.add("active");
     if (id !== "screen-quiz") stopAudio();
-    if (id === "screen-home") buildPickupList(); // ゴールド語数などの進捗を反映し直す
+    if (id === "screen-home") { buildPickupList(); updateSyncWarning(); } // ゴールド語数などの進捗を反映し直す
     if (id === "screen-collection") buildCollectionList();
     if (id === "screen-records") buildRecordsScreen();
 }
@@ -652,9 +665,16 @@ function updateSyncDisplay() {
     el.innerText = lastSyncAt ? formatTimeHHMMSS(lastSyncAt) : "未同期";
 }
 
-// 「今すぐ同期を確認」：現在の進捗を送信し、直後にサーバーから読み直すことで
-// 実際にサーバーと通信できているかをその場で確認する（送信の成否は仕組み上確認できないため、
-// 読み直しが成功するかどうかを接続確認の代わりとして使う）。
+// stateSyncOk が false（＝サーバーの本当の進捗をまだ確認できていない）の間、
+// プレイしても保存されないことを目立つ形で警告する。
+function updateSyncWarning() {
+    const el = document.getElementById("sync-warn");
+    if (!el) return;
+    el.style.display = stateSyncOk ? "none" : "block";
+}
+
+// 「今すぐ同期を確認」：まずサーバーから読み込み、成功して初めて現在の状態を送り返す。
+// 読み込みに失敗した場合は何も送信しない（サーバーの本当の進捗を誤って上書きしないため）。
 function manualSync() {
     if (!currentStudent) return;
     const btn = document.getElementById("sync-btn");
@@ -662,15 +682,17 @@ function manualSync() {
     btn.disabled = true;
     btn.innerText = "確認中…";
     msg.innerText = "";
-    pushStateToSheet();
     requestSheetRetry({ action: "loadState", number: currentStudent.number }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 })
         .then(res => {
             if (!res || res.result !== "success") throw new Error("bad_response");
             if (res.state) {
                 try { userLog = Object.assign(userLog, JSON.parse(res.state)); } catch (e) { /* 壊れていれば無視して続行 */ }
             }
+            stateSyncOk = true; // サーバーの本当の進捗を確認できたので、以後の保存を許可する
+            pushStateToSheet(); // 取得した内容をそのまま送り返す（無害な確認送信）
             lastSyncAt = new Date();
             updateSyncDisplay();
+            updateSyncWarning();
             updateHomeStats();
             buildPickupList();
             msg.style.color = "#4caf50";
