@@ -312,9 +312,9 @@ const TYPING_TIME_LIMIT_MS = 10000; // タイピングは選択式より時間�
 const PRACTICE_SCORE_RATE = 0.5;          // 練習モードは合計を半分に換算
 const AUDIO_DIR = { word: "voice/word/", sentence: "voice/sentence/" };
 
-/* ---- Googleスプレッドシート連携設定 ---- */
-const SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzdAwrukRfx-i_5lIgkHW4JiveZQtVTFJoryuBqshJ4KDXWUhCCbbfi_Xhjspek7y9D6A/exec"; // 例: https://script.google.com/macros/s/.../exec
-const SHEET_SECRET = "TOMATO03"; // Apps Script側の PUBLIC_SECRET と完全一致させる（管理者用のADMIN_SECRETとは別の値）
+/* ---- Supabase連携設定 ---- */
+const SUPABASE_FUNCTION_URL = "https://sakkrwfnaromqzlfgatr.supabase.co/functions/v1/smart-service";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_MzlYHvTYTnO5plwIWU7Dnw_Wo8HuWK5"; // 公開しても問題ない鍵（クライアント埋め込み用）
 
 let currentStudent = null;
 // サーバーから本当の進捗を読み込めた場合だけ true になる。
@@ -336,40 +336,40 @@ function nowJstISOString() {
         pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + "+09:00";
 }
 
-/* ---- JSONPでスプレッドシートを呼び出す共通関数 ---- */
-let jsonpCounter = 0;
+/* ---- Supabase Edge Functionを呼び出す共通関数 ---- */
 function requestSheet(params, timeoutMs) {
-    return new Promise((resolve, reject) => {
-        jsonpCounter++;
-        const cbName = "jsonp_cb_" + jsonpCounter;
-        const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, timeoutMs || 8000);
-        function cleanup() {
-            delete window[cbName];
-            if (script.parentNode) script.parentNode.removeChild(script);
-            clearTimeout(timer);
-        }
-        window[cbName] = function (data) { cleanup(); resolve(data); };
-        const query = Object.assign({ secret: SHEET_SECRET, callback: cbName }, params);
-        const qs = Object.keys(query).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(query[k])).join("&");
-        const script = document.createElement("script");
-        script.src = SHEET_WEBAPP_URL + "?" + qs;
-        script.onerror = () => { cleanup(); reject(new Error("network")); };
-        document.body.appendChild(script);
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs || 8000);
+    return fetch(SUPABASE_FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": "Bearer " + SUPABASE_PUBLISHABLE_KEY
+        },
+        body: JSON.stringify(params),
+        signal: controller.signal
+    }).then(res => {
+        if (!res.ok) throw new Error("http_" + res.status);
+        return res.json();
+    }).finally(() => clearTimeout(timer));
 }
 
 function sendToSheet(payload) {
     try {
-        fetch(SHEET_WEBAPP_URL, {
+        fetch(SUPABASE_FUNCTION_URL, {
             method: "POST",
-            mode: "no-cors",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify(Object.assign({ secret: SHEET_SECRET }, payload))
+            headers: {
+                "Content-Type": "application/json",
+                "apikey": SUPABASE_PUBLISHABLE_KEY,
+                "Authorization": "Bearer " + SUPABASE_PUBLISHABLE_KEY
+            },
+            body: JSON.stringify(payload)
         }).catch(function () { /* 送信失敗してもゲーム進行には影響させない */ });
     } catch (e) { /* no-op */ }
 }
 
-/* ---- 失敗しても自動で待って再試行する（Apps Scriptのコールドスタート・一時的な混雑対策） ----
+/* ---- 失敗しても自動で待って再試行する（コールドスタート・一時的な混雑対策） ----
    「放置すればそのうち繋がる」性質の失敗に対して、ユーザーの手を止めずに裏側で再試行する。 */
 function requestSheetRetry(params, opts) {
     const o = Object.assign({ timeoutMs: 8000, retries: 2, backoffMs: 2500 }, opts || {});
