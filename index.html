@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英単語クエストver.0.3</title>
+    <title>英単語クエストver.03.1</title>
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -80,6 +80,17 @@
         .choice-btn { font-size: 15px; padding: 14px 8px; min-height: 56px; display: flex; align-items: center; justify-content: center; }
         .choice-btn.correct-flash { background: var(--success-color) !important; }
         .choice-btn.wrong-flash { background: var(--danger-color) !important; }
+        /* タイピングテストモード用 */
+        #typing-row { display: none; }
+        #typing-input {
+            width: 100%; padding: 14px; margin-bottom: 10px; font-size: 20px; text-align: center;
+            border-radius: 8px; border: 2px solid #444; background: #0f1730; color: #fff;
+            letter-spacing: 1px; transition: border-color 0.15s, background 0.15s;
+        }
+        #typing-input:disabled { opacity: 0.7; }
+        #typing-input.correct-flash { border-color: var(--success-color); background: rgba(76,175,80,0.15); }
+        #typing-input.wrong-flash { border-color: var(--danger-color); background: rgba(233,69,96,0.15); }
+        #typing-answer-reveal { text-align: center; font-size: 13px; color: #ccc; min-height: 18px; margin-bottom: 6px; }
         select { background: #0f1730; color: white; border: 1px solid #444; }
 
         /* ガチャ演出 */
@@ -132,7 +143,7 @@
     <div id="save-warn">⚠ 進捗を保存できません。このまま遊べますが記録は残りません。埋め込み表示やプライベートモードではなく、HTMLファイルを Safari / Chrome で直接開いてください。</div>
 
     <div id="screen-login" class="screen active">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.0.3</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.03.1</small></h1>
         <div class="stats-box" style="text-align:center;">
             <label style="display:block; margin-bottom:6px;">生徒番号</label>
             <input type="text" id="loginNumber" inputmode="numeric" placeholder="001" style="width:100%; padding:10px; border-radius:8px; border:1px solid #444; background:#0f1730; color:#fff; font-size:16px; text-align:center; margin-bottom:12px;">
@@ -145,7 +156,7 @@
     </div>
 
     <div id="screen-home" class="screen">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.0.3</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.03.1</small></h1>
         <div class="stats-box" style="font-size:12px; color:#aaa; text-align:center; padding:10px;">
             <div>👤 ログイン中: <b id="stat-studentname" style="color:#fff;"></b>（<span id="stat-studentnumber"></span>番）</div>
             <div style="margin-top:2px;"><span id="stat-studentschool"></span> ・ <span id="stat-studentgrade"></span></div>
@@ -197,6 +208,7 @@
         </div>
         <button class="btn" onclick="startQuest('practice')">練習モード (リボルバー駆動)</button>
         <button class="btn" style="background:var(--danger-color);" onclick="startQuest('test')">テストモード (本番)</button>
+        <button class="btn" style="background:#6a3fb5;" onclick="startQuest('typing')">⌨️ タイピングテスト (スペル入力)</button>
         <button class="btn" style="background:#555;" onclick="changeScreen(readyBackScreen)">戻る</button>
     </div>
 
@@ -210,6 +222,13 @@
             <button type="button" class="btn audio-btn" id="btn-sentence-audio" onclick="playAudio('sentence')">💬 例文</button>
         </div>
         <div id="quiz-choices" class="grid"></div>
+        <div id="typing-row">
+            <input type="text" id="typing-input" placeholder="英単語をスペルで入力"
+                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                onkeydown="if(event.key==='Enter'){event.preventDefault(); submitTypingAnswer();}">
+            <div id="typing-answer-reveal"></div>
+            <button type="button" class="btn" id="typing-submit-btn" onclick="submitTypingAnswer()">決定</button>
+        </div>
     </div>
 
     <div id="screen-result" class="screen">
@@ -278,13 +297,14 @@
 
 <script src="data.js"></script>
 <script>
-// ===== 英単語クエスト ver.0.3 =====
+// ===== 英単語クエスト ver.03.1 =====
 // 単語データは data.js（build_data.py が NH_LIST から生成）の courseData を使う。
 
 const GRADES = ["中学1年", "中学2年", "中学3年"];
 const MAX_EQUIPPED_ITEMS = 3;
 const QUESTIONS_PER_QUEST = 10;
 const BASE_TIME_LIMIT_MS = 6000;
+const TYPING_TIME_LIMIT_MS = 10000; // タイピングは選択式より時間がかかるため長めに設定（★要件確認時に未指定だったための仮値。変更希望あれば調整可）
 const PRACTICE_SCORE_RATE = 0.5;          // 練習モードは合計を半分に換算
 const AUDIO_DIR = { word: "voice/word/", sentence: "voice/sentence/" };
 
@@ -963,7 +983,8 @@ function startQuest(mode) {
 }
 
 function getTimeLimit() {
-    return BASE_TIME_LIMIT_MS + 1000 * sumItemValue("delay");
+    const base = currentMode === "typing" ? TYPING_TIME_LIMIT_MS : BASE_TIME_LIMIT_MS;
+    return base + 1000 * sumItemValue("delay");
 }
 
 function nextQuestion() {
@@ -973,20 +994,41 @@ function nextQuestion() {
 
     const word = quizWords[currentQuizIdx];
     document.getElementById("quiz-progress").innerText = `第 ${currentQuizIdx + 1} / ${quizWords.length} 問`;
-    document.getElementById("word-display").innerText = word.english;
     document.getElementById("combo-display").innerText = currentCombo > 0 ? `${currentCombo} COMBO!` : "";
     setupAudioButtons(word);
 
     const box = document.getElementById("quiz-choices");
-    box.innerHTML = "";
-    buildChoices(word).forEach(text => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "btn choice-btn";
-        btn.innerText = text;
-        btn.onclick = () => handleAnswer(text === word.japanese, btn, word);
-        box.appendChild(btn);
-    });
+    const typingRow = document.getElementById("typing-row");
+    const reveal = document.getElementById("typing-answer-reveal");
+
+    if (currentMode === "typing") {
+        // タイピングモード: 日本語の意味を見て、英単語のスペルを入力させる
+        document.getElementById("word-display").innerText = word.japanese;
+        box.style.display = "none";
+        box.innerHTML = "";
+        typingRow.style.display = "block";
+        reveal.innerText = "";
+        const input = document.getElementById("typing-input");
+        const submitBtn = document.getElementById("typing-submit-btn");
+        input.value = "";
+        input.disabled = false;
+        input.classList.remove("correct-flash", "wrong-flash");
+        submitBtn.disabled = false;
+        setTimeout(() => input.focus(), 50); // モバイルでのフォーカス反映待ち
+    } else {
+        document.getElementById("word-display").innerText = word.english;
+        typingRow.style.display = "none";
+        box.style.display = "";
+        box.innerHTML = "";
+        buildChoices(word).forEach(text => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn choice-btn";
+            btn.innerText = text;
+            btn.onclick = () => handleAnswer(text === word.japanese, btn, word);
+            box.appendChild(btn);
+        });
+    }
 
     questionStartTime = performance.now();
     clearInterval(timerInterval);
@@ -1000,14 +1042,27 @@ function nextQuestion() {
     timerInterval = setInterval(() => {
         const elapsed = performance.now() - questionStartTime;
         bar.style.width = Math.max(0, (limit - elapsed) / limit * 100) + "%";
-        if (elapsed >= limit) { clearInterval(timerInterval); handleAnswer(false, null, word); }
+        if (elapsed >= limit) {
+            clearInterval(timerInterval);
+            if (currentMode === "typing") {
+                const input = document.getElementById("typing-input");
+                input.disabled = true;
+                document.getElementById("typing-submit-btn").disabled = true;
+                handleAnswer(false, input, word);
+            } else {
+                handleAnswer(false, null, word);
+            }
+        }
     }, 100);
 }
+
+// タイピングモードは「テストモード」と同じく時間制限つきの本番モードとして扱う
+function isTimedMode() { return currentMode === "test" || currentMode === "typing"; }
 
 function questionScore(elapsedMs) {
     const base = 100 + sumItemValue("boost");
     const limit = getTimeLimit();
-    const timeFactor = currentMode === "test" ? Math.max((limit - elapsedMs) / limit, 0.01) : 1.0;
+    const timeFactor = isTimedMode() ? Math.max((limit - elapsedMs) / limit, 0.01) : 1.0;
     const comboRate = currentCombo >= 10 ? 1.5 : currentCombo >= 5 ? 1.2 : 1.0;
     const loginRate = userLog.loginStreak >= 7 ? 1.1 : userLog.loginStreak >= 3 ? 1.05 : 1.0;
     return Math.floor(base * timeFactor * comboRate * loginRate);
@@ -1016,11 +1071,28 @@ function questionScore(elapsedMs) {
 // アイテム(boost=加点／delay=時間延長)の効果を除いた「素の」スコア。コンボ・ログインボーナスは実力分なのでそのまま反映する
 function questionScoreRaw(elapsedMs) {
     const base = 100;
-    const limit = BASE_TIME_LIMIT_MS;
-    const timeFactor = currentMode === "test" ? Math.max((limit - elapsedMs) / limit, 0.01) : 1.0;
+    const limit = currentMode === "typing" ? TYPING_TIME_LIMIT_MS : BASE_TIME_LIMIT_MS;
+    const timeFactor = isTimedMode() ? Math.max((limit - elapsedMs) / limit, 0.01) : 1.0;
     const comboRate = currentCombo >= 10 ? 1.5 : currentCombo >= 5 ? 1.2 : 1.0;
     const loginRate = userLog.loginStreak >= 7 ? 1.1 : userLog.loginStreak >= 3 ? 1.05 : 1.0;
     return Math.floor(base * timeFactor * comboRate * loginRate);
+}
+
+// ---------- タイピングモード ----------
+function submitTypingAnswer() {
+    if (answerLocked) return;
+    const word = quizWords[currentQuizIdx];
+    if (!word) return;
+    const input = document.getElementById("typing-input");
+    const submitBtn = document.getElementById("typing-submit-btn");
+    const userVal = (input.value || "").trim().toLowerCase();
+    const correct = userVal.length > 0 && userVal === String(word.english).trim().toLowerCase();
+    input.disabled = true;
+    submitBtn.disabled = true;
+    if (!correct) {
+        document.getElementById("typing-answer-reveal").innerText = `正解: ${word.english}`;
+    }
+    handleAnswer(correct, input, word);
 }
 
 function handleAnswer(correct, btn, word) {
@@ -1067,10 +1139,13 @@ function endQuest() {
     // totalScoreRaw にはinjector加算・multiplier倍率は適用しない（=アイテムなしのスコア）
     if (currentMode === "practice") totalScoreRaw = Math.floor(totalScoreRaw * PRACTICE_SCORE_RATE);
 
-    const isTest = currentMode === "test";
+    const isTest = currentMode === "test" || currentMode === "typing"; // タイピングもテスト同様にポイント獲得・記録対象とする
     const earned = isTest ? Math.floor(totalScore / 100) : 0;
     userLog.points += earned;
-    document.getElementById("res-mode").innerText = isTest ? "テストモード" : "練習モード（テストの半分に換算・ポイントなし）";
+    const modeLabel = currentMode === "test" ? "テストモード"
+        : currentMode === "typing" ? "タイピングテストモード"
+        : "練習モード（テストの半分に換算・ポイントなし）";
+    document.getElementById("res-mode").innerText = modeLabel;
     document.getElementById("res-score").innerText = totalScore;
     document.getElementById("res-score-raw").innerText = totalScoreRaw;
     document.getElementById("res-pt").innerText = earned;
