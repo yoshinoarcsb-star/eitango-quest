@@ -320,6 +320,7 @@ const SUPABASE_FUNCTION_URL = "https://sakkrwfnaromqzlfgatr.supabase.co/function
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_MzlYHvTYTnO5plwIWU7Dnw_Wo8HuWK5"; // 公開しても問題ない鍵（クライアント埋め込み用）
 
 let currentStudent = null;
+let sessionToken = null; // login成功時にサーバーから発行される。以後の本人確認に使う
 // サーバーから本当の進捗を読み込めた場合だけ true になる。
 // false のままでは pushStateToSheet() は一切送信しない（初期値やローカルキャッシュでの誤上書きを防ぐため）。
 let stateSyncOk = false;
@@ -384,17 +385,16 @@ function requestSheetRetry(params, opts) {
     }
     return attempt(0);
 }
-function loadStateFromSheet(number) {
-    return requestSheetRetry({ action: "loadState", number: number }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 });
+function loadStateFromSheet(token) {
+    return requestSheetRetry({ action: "loadState", token: token }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 });
 }
 
 function pushStateToSheet() {
-    if (!currentStudent) return;
+    if (!currentStudent || !sessionToken) return;
     if (!stateSyncOk) return; // サーバーの本当の進捗をまだ確認できていないので、誤って上書きしないよう送信しない
     sendToSheet({
         action: "saveState",
-        studentNumber: currentStudent.number,
-        name: currentStudent.name,
+        token: sessionToken,
         state: JSON.stringify(userLog),
         updatedAt: nowJstISOString()
     });
@@ -475,13 +475,13 @@ function submitLogin() {
     loginBtn.innerText = "確認中…";
 
     requestSheetRetry({ action: "login", number: number, passcode: passcode }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 }).then(res => {
-        if (!res || res.result !== "success" || !res.student) {
+        if (!res || res.result !== "success" || !res.student || !res.token) {
             loginBtn.disabled = false;
             loginBtn.innerText = "ログイン";
             err.innerText = "生徒番号または合言葉が違います";
             return;
         }
-        proceedLogin(res.student);
+        proceedLogin(res.student, res.token);
     }).catch(() => {
         loginBtn.disabled = false;
         loginBtn.innerText = "ログイン";
@@ -489,8 +489,9 @@ function submitLogin() {
     });
 }
 
-function proceedLogin(student) {
+function proceedLogin(student, token) {
     currentStudent = student;
+    sessionToken = token;
     SAVE_KEY = "eq_user_log_" + student.number;
     loadLog(); // 端末内キャッシュをひとまず読み込む（通信できない時の保険）
 
@@ -502,7 +503,7 @@ function proceedLogin(student) {
 
     let stateLoadOk = false; // このログインでサーバーから正しく読み込めたか
     Promise.all([
-        loadStateFromSheet(student.number).then(res => {
+        loadStateFromSheet(sessionToken).then(res => {
             if (res && res.result === "success") {
                 stateLoadOk = true; // 通信成功。res.stateがnullなのは「まだ記録が無い新規生徒」の正常なケース
                 if (res.state) {
@@ -704,13 +705,13 @@ function updateSyncWarning() {
 // 「今すぐ同期を確認」：まずサーバーから読み込み、成功して初めて現在の状態を送り返す。
 // 読み込みに失敗した場合は何も送信しない（サーバーの本当の進捗を誤って上書きしないため）。
 function manualSync() {
-    if (!currentStudent) return;
+    if (!currentStudent || !sessionToken) return;
     const btn = document.getElementById("sync-btn");
     const msg = document.getElementById("sync-msg");
     btn.disabled = true;
     btn.innerText = "確認中…";
     msg.innerText = "";
-    requestSheetRetry({ action: "loadState", number: currentStudent.number }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 })
+    requestSheetRetry({ action: "loadState", token: sessionToken }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 })
         .then(res => {
             if (!res || res.result !== "success") throw new Error("bad_response");
             if (res.state) {
@@ -744,13 +745,13 @@ function escapeHtmlLocal(str) {
 // 「自分の記録」画面から、実際にスプレッドシート(Sessions)に届いている直近の実施記録を取得して表示する。
 // ローカルキャッシュだけでなく、サーバー側に本当に保存されているかをここで確認できる。
 function loadServerRecords() {
-    if (!currentStudent) return;
+    if (!currentStudent || !sessionToken) return;
     const status = document.getElementById("record-server-status");
     const list = document.getElementById("record-server-list");
     status.style.color = "#999";
     status.innerText = "取得中…";
     list.innerHTML = "";
-    requestSheetRetry({ action: "records", number: currentStudent.number }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 })
+    requestSheetRetry({ action: "records", token: sessionToken }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 })
         .then(res => {
             if (!res || res.result !== "success" || !Array.isArray(res.sessions)) throw new Error("bad_response");
             const sessions = res.sessions;
@@ -1190,13 +1191,12 @@ function endQuest() {
     saveLog();
     updateHomeStats();
 
-    if (currentStudent) {
+    if (currentStudent && sessionToken) {
         pushStateToSheet();
 
         sendToSheet({
             action: "saveSession",
-            studentNumber: currentStudent.number,
-            name: currentStudent.name,
+            token: sessionToken,
             studiedAt: nowJstISOString(),
             mode: currentMode,
             grade: selectedGrade,
@@ -1213,8 +1213,7 @@ function endQuest() {
         if (weakWords.length > 0) {
             sendToSheet({
                 action: "saveWeakWords",
-                studentNumber: currentStudent.number,
-                name: currentStudent.name,
+                token: sessionToken,
                 updatedAt: nowJstISOString(),
                 words: weakWords
             });
