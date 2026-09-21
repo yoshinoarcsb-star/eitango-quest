@@ -173,6 +173,7 @@
             <div>🔥 連続ログイン: <span id="stat-login">1</span> 日</div>
             <div>🏆 今週のハイスコア: <span id="stat-highscore">0</span> 点</div>
             <div>💎 所持ポイント: <span id="stat-points">0</span> pt</div>
+            <div>✅ 完了単語数: <span id="stat-completedwords">0</span> 語</div>
             <div>📖 収録単語数: <span id="stat-totalwords">0</span> 語</div>
         </div>
         <div id="pickup-box" class="stats-box" style="display:none;">
@@ -206,7 +207,7 @@
             <div id="item-checklist" style="margin-top:8px;"></div>
             <div style="font-size:11px; color:#999; margin-top:6px;">※アイテムを使うと「アイテム込みスコア」が上がります。実力を測る「アイテムなしスコア」も別途あわせて記録されます。</div>
         </div>
-        <button class="btn" onclick="startQuest('practice')">練習モード (リボルバー駆動)</button>
+        <button class="btn" onclick="startQuest('practice')">練習モード</button>
         <button class="btn" style="background:var(--danger-color);" onclick="startQuest('test')">テストモード (本番)</button>
         <button class="btn" style="background:#6a3fb5;" onclick="startQuest('typing')">⌨️ タイピングテスト (スペル入力)</button>
         <button class="btn" style="background:#555;" onclick="changeScreen(readyBackScreen)">戻る</button>
@@ -634,6 +635,13 @@ function totalWordCount() {
     return n;
 }
 
+// 完了単語数: 全ステージ・全学年のうち「ゴールド」になっている単語の数
+function completedWordCount() {
+    let n = 0;
+    for (const u in courseData) for (const g in courseData[u]) n += courseData[u][g].filter(w => isGold(w.id)).length;
+    return n;
+}
+
 function isGold(wordId) {
     const s = userLog.wordStatuses[wordId];
     return !!s && s.heat === 0 && s.lastTime > 0;
@@ -666,6 +674,7 @@ function updateHomeStats() {
     document.getElementById("stat-login").innerText = userLog.loginStreak;
     document.getElementById("stat-highscore").innerText = userLog.weeklyHighScore;
     document.getElementById("stat-points").innerText = userLog.points;
+    document.getElementById("stat-completedwords").innerText = completedWordCount();
     document.getElementById("stat-totalwords").innerText = totalWordCount();
 }
 
@@ -941,9 +950,12 @@ function drawGacha() {
 // ---------- 出題 ----------
 function pickQuizWords(mode) {
     const words = wordsOf(selectedUnit, selectedGrade).slice();
-    if (mode === "test") return shuffle(words).slice(0, QUESTIONS_PER_QUEST);
 
-    // 練習モード（リボルバー駆動）: 苦手×放置時間 の上位8語 + 残りからランダム
+    // テストモード: ステージ内の全単語をランダム順で出題
+    if (mode === "test") return shuffle(words);
+
+    // 練習モード: ステージ内の全単語を出題。苦手×放置時間 の上位8語を先頭に、残りはランダム順
+    // タイピングモードは従来どおり QUESTIONS_PER_QUEST 問だけ出題する
     const now = Date.now();
     const scored = words.map(w => {
         const s = userLog.wordStatuses[w.id] || { heat: 0, lastTime: 0 };
@@ -952,7 +964,8 @@ function pickQuizWords(mode) {
     scored.sort((a, b) => b.score - a.score);
     const top = scored.slice(0, 8).map(x => x.w);
     const rest = shuffle(scored.slice(8).map(x => x.w));
-    return top.concat(rest).slice(0, QUESTIONS_PER_QUEST);
+    const ordered = top.concat(rest);
+    return mode === "typing" ? ordered.slice(0, QUESTIONS_PER_QUEST) : ordered;
 }
 
 function buildChoices(word) {
