@@ -953,8 +953,10 @@ function pickQuizWords(mode) {
     // テストモード: ステージ内の全単語をランダム順で出題
     if (mode === "test") return shuffle(words);
 
+    // タイピングテスト: ステージ内の全単語からランダムに QUESTIONS_PER_QUEST 問を選ぶ（苦手度による偏りなし）
+    if (mode === "typing") return shuffle(words).slice(0, QUESTIONS_PER_QUEST);
+
     // 練習モード: ステージ内の全単語を出題。苦手×放置時間 の上位8語を先頭に、残りはランダム順
-    // タイピングモードは従来どおり QUESTIONS_PER_QUEST 問だけ出題する
     const now = Date.now();
     const scored = words.map(w => {
         const s = userLog.wordStatuses[w.id] || { heat: 0, lastTime: 0 };
@@ -963,8 +965,7 @@ function pickQuizWords(mode) {
     scored.sort((a, b) => b.score - a.score);
     const top = scored.slice(0, 8).map(x => x.w);
     const rest = shuffle(scored.slice(8).map(x => x.w));
-    const ordered = top.concat(rest);
-    return mode === "typing" ? ordered.slice(0, QUESTIONS_PER_QUEST) : ordered;
+    return top.concat(rest);
 }
 
 function buildChoices(word) {
@@ -1125,7 +1126,7 @@ function handleAnswer(correct, btn, word) {
         totalScore += questionScore(elapsed);
         totalScoreRaw += questionScoreRaw(elapsed);
         status.heat = Math.max(0, status.heat - 1);
-        if (elapsed > 5000) status.heat += 0.5;
+        if (currentMode !== "typing" && elapsed > 5000) status.heat += 0.5; // 回答が遅いと苦手度が少し上がる（タイピングは対象外）
     } else {
         currentCombo = 0;
         status.heat += 2;
