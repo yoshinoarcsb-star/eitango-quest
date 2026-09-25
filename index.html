@@ -236,6 +236,7 @@
         <h2>リザルト</h2>
         <div class="stats-box" style="font-size:18px; text-align:center;">
             <div id="res-mode"></div>
+            <div style="margin:10px 0;">正答数: <span id="res-correct" style="font-weight:bold;">0</span> / <span id="res-total">0</span> 問</div>
             <div style="margin:10px 0;">獲得スコア（アイテム込み）: <span id="res-score" style="color:var(--secondary-color); font-weight:bold;">0</span> 点</div>
             <div style="margin:4px 0 10px; font-size:13px; color:#ccc;">アイテムなしの場合のスコア: <span id="res-score-raw" style="font-weight:bold;">0</span> 点</div>
             <div style="margin:10px 0;">獲得ポイント: +<span id="res-pt" style="color:var(--success-color); font-weight:bold;">0</span> pt</div>
@@ -552,6 +553,7 @@ let currentCombo = 0;
 let totalScore = 0;      // アイテム込みの最終スコア
 let totalScoreRaw = 0;   // アイテム(boost/injector/multiplier/delay)の効果を除いたスコア
 let missedWords = [];    // このクエスト中に一度でも間違えた単語（リザルトで一覧表示する）
+let correctCount = 0;    // このクエスト中の正答数（記録用。正答数/問題数として保存する）
 let questionStartTime = 0;
 let timerInterval = null;
 let advanceTimeout = null;
@@ -953,8 +955,8 @@ function pickQuizWords(mode) {
     // テストモード: ステージ内の全単語をランダム順で出題
     if (mode === "test") return shuffle(words);
 
-    // タイピングテスト: ステージ内の全単語からランダムに QUESTIONS_PER_QUEST 問を選ぶ（苦手度による偏りなし）
-    if (mode === "typing") return shuffle(words).slice(0, QUESTIONS_PER_QUEST);
+    // タイピングテスト: ステージ内の全単語をランダム順で出題（苦手度による偏りなし）
+    if (mode === "typing") return shuffle(words);
 
     // 練習モード: ステージ内の全単語を出題。苦手×放置時間 の上位8語を先頭に、残りはランダム順
     const now = Date.now();
@@ -989,6 +991,7 @@ function startQuest(mode) {
     totalScore = 0;
     totalScoreRaw = 0;
     missedWords = [];
+    correctCount = 0;
     answerLocked = false;
     clearTimeout(advanceTimeout);
     clearInterval(timerInterval);
@@ -1100,8 +1103,10 @@ function submitTypingAnswer() {
     if (!word) return;
     const input = document.getElementById("typing-input");
     const submitBtn = document.getElementById("typing-submit-btn");
-    const userVal = (input.value || "").trim().toLowerCase();
-    const correct = userVal.length > 0 && userVal === String(word.english).trim().toLowerCase();
+    // 正誤判定は記号・スペースの有無を問わない（大文字小文字も区別しない）
+    const normalizeTyping = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+    const userVal = normalizeTyping(input.value || "");
+    const correct = userVal.length > 0 && userVal === normalizeTyping(word.english);
     input.disabled = true;
     submitBtn.disabled = true;
     if (!correct) {
@@ -1123,6 +1128,7 @@ function handleAnswer(correct, btn, word) {
     const status = userLog.wordStatuses[word.id] || (userLog.wordStatuses[word.id] = { heat: 0, lastTime: 0 });
     if (correct) {
         currentCombo++;
+        correctCount++;
         totalScore += questionScore(elapsed);
         totalScoreRaw += questionScoreRaw(elapsed);
         status.heat = Math.max(0, status.heat - 1);
@@ -1175,6 +1181,8 @@ function endQuest() {
         : currentMode === "typing" ? "タイピングテストモード"
         : "練習モード（テストの半分に換算・ポイントなし）";
     document.getElementById("res-mode").innerText = modeLabel;
+    document.getElementById("res-correct").innerText = correctCount;
+    document.getElementById("res-total").innerText = quizWords.length;
     document.getElementById("res-score").innerText = totalScore;
     document.getElementById("res-score-raw").innerText = totalScoreRaw;
     document.getElementById("res-pt").innerText = earned;
@@ -1218,6 +1226,7 @@ function endQuest() {
             grade: selectedGrade,
             unit: selectedUnit,
             questionCount: quizWords.length,
+            correctCount: correctCount,
             score: totalScore,
             scoreRaw: totalScoreRaw,
             gainedPoints: earned
