@@ -623,6 +623,17 @@ function checkLogin() {
 
 // ---------- データ参照 ----------
 function unitsOfGrade(grade) {
+    // courseOrder（学年ごとのステージ登場順）が用意されていればそちらを使う。
+    // これは、JavaScriptのオブジェクトキー列挙順が
+    //  (a) "1"のような整数っぽいキーを問答無用で先頭に並べる
+    //  (b) 同じステージ名が複数学年で使い回されていると、そのキーの並び順が
+    //      最初にそのステージ名が登場した学年の位置に固定される
+    // という理由でCSVの登場順とズレることがあるための対策。
+    // courseOrder が無い古い data.js を読み込んだ場合は、
+    // 従来通り Object.keys(courseData) にフォールバックする。
+    if (typeof courseOrder !== "undefined" && courseOrder[grade]) {
+        return courseOrder[grade].filter(u => courseData[u] && courseData[u][grade]);
+    }
     return Object.keys(courseData).filter(u => courseData[u][grade]);
 }
 
