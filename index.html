@@ -301,10 +301,32 @@
     </div>
 </div>
 
-<script src="data.js"></script>
 <script>
 // ===== 英単語クエスト ver.03.1 =====
-// 単語データは data.js（build_data.py が NH_LIST から生成）の courseData を使う。
+// 単語データは教材ごとのファイル（data_sanseido.js / data_tokyo.js。build_data.py で生成）。
+// ログイン後、その生徒の教材ファイルだけを読み込んで courseData / courseOrder に入れる。
+var courseData = {};
+var courseOrder = {};
+const TEXTBOOK_IDS = ["sanseido", "tokyo"];
+
+function loadTextbookData(tb) {
+    if (!TEXTBOOK_IDS.includes(tb)) tb = "sanseido";
+    return new Promise(resolve => {
+        const apply = () => {
+            const t = window.TEXTBOOKS && window.TEXTBOOKS[tb];
+            if (!t) return false;
+            courseData = t.courseData || {};
+            courseOrder = t.courseOrder || {};
+            return true;
+        };
+        if (apply()) { resolve(true); return; }
+        const el = document.createElement("script");
+        el.src = "data_" + tb + ".js";
+        el.onload = () => resolve(apply());
+        el.onerror = () => resolve(false);
+        document.head.appendChild(el);
+    });
+}
 
 const GRADES = ["中学1年", "中学2年", "中学3年"];
 const MAX_EQUIPPED_ITEMS = 3;
@@ -432,6 +454,7 @@ function buildPickupList() {
     const items = PICKUPS.filter(p => {
         if (p.school && p.school !== school) return false;   // 校舎が空欄なら全校舎共通
         if (p.grade && p.grade !== grade) return false;      // 学年が空欄なら全学年共通
+        if ((p.textbook || "sanseido") !== (currentStudent.textbook || "sanseido")) return false; // 教材が違う設定は出さない
         // data.js に存在しない単元は表示しない（設定ミス・単語データ更新への保険）
         return courseData[p.unit] && courseData[p.unit][p.courseGrade];
     });
@@ -503,7 +526,9 @@ function proceedLogin(student, token) {
     loadPickupsFromCache(); // 通信できない時のためにまず端末内キャッシュを読む
 
     let stateLoadOk = false; // このログインでサーバーから正しく読み込めたか
+    let textbookOk = false;  // 教材データ(data_xxx.js)を読み込めたか
     Promise.all([
+        loadTextbookData(student.textbook).then(ok => { textbookOk = ok; }),
         loadStateFromSheet(sessionToken).then(res => {
             if (res && res.result === "success") {
                 stateLoadOk = true; // 通信成功。res.stateがnullなのは「まだ記録が無い新規生徒」の正常なケース
@@ -516,6 +541,14 @@ function proceedLogin(student, token) {
         // ページ読み込み時に先読みを開始済みならそれを待つだけにして、同時に2本目のリクエストを送らないようにする
         pickupsReadyPromise || loadPickupsFromSheet()
     ]).then(() => {
+        if (!textbookOk) {
+            // 単語データが無い状態で進むと空のまま保存してしまうので、ログイン画面に留める
+            currentStudent = null; sessionToken = null;
+            loginBtn.disabled = false;
+            loginBtn.innerText = "ログイン";
+            document.getElementById("loginError").innerText = "単語データを読み込めませんでした。電波の良い場所で再度お試しください";
+            return;
+        }
         stateSyncOk = stateLoadOk;
         loginBtn.disabled = false;
         loginBtn.innerText = "ログイン";
