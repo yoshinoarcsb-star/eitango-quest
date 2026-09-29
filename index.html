@@ -1482,6 +1482,10 @@ async function clsFetch() {
     clsRetry();
 }
 function clsApply(rm) {
+    // 解答表示・次の問題・終了に進んだとき、未決定の入力は、その時点の綴りで自動送信する
+    const leaving = (rm.status && rm.status !== "question" && rm.status !== "paused") ||
+        (rm.current_index != null && cls.idx >= 0 && rm.current_index !== cls.idx);
+    if (cls.room.status === "question" && leaving && cls.idx >= 0) clsSubmitAt(cls.idx);
     Object.assign(cls.room, rm);
     const r = cls.room;
     if (r.status === "question") {
@@ -1500,6 +1504,7 @@ function clsRender() {
     if (s === "finished") { clsFinish(); return; }
     if (!showQ) return;
     const a = cls.ans[cls.idx], locked = cls.locked.has(cls.idx);
+    clsEl("cls-timer").style.display = cls.room.time_limit ? "" : "none";
     clsEl("cls-head").textContent = `第 ${cls.idx + 1} 問 / ${cls.words.length}`;
     clsEl("cls-ja").textContent = w.ja;
     const fb = clsEl("cls-fb");
@@ -1520,7 +1525,7 @@ function clsSlots() {
     clsEl("cls-slots").style.color = a ? (a.ok ? "#5fe08f" : "#ff7b7b") : "";
 }
 function clsTimer() {
-    if (!cls || cls.room.status !== "question") return;
+    if (!cls || cls.room.status !== "question" || !cls.room.time_limit) return;
     const left = cls.room.time_limit - (performance.now() - cls.recvAt) / 1000;
     clsEl("cls-timer").firstElementChild.style.width = Math.max(0, left / cls.room.time_limit * 100) + "%";
     if (left <= 0 && !cls.locked.has(cls.idx)) clsSubmit();
@@ -1551,8 +1556,12 @@ function clsKey(k) {
 }
 /* ---- 回答の送信（失敗したら端末に溜めて再送） ---- */
 function clsSubmit() {
-    if (!cls || cls.room.status !== "question" || cls.locked.has(cls.idx)) return;
-    const w = cls.words[cls.idx], idx = cls.idx;
+    if (!cls || cls.room.status !== "question") return;
+    clsSubmitAt(cls.idx);
+}
+function clsSubmitAt(idx) {
+    if (!cls || cls.locked.has(idx)) return;
+    const w = cls.words[idx]; if (!w) return;
     const ok = cls.typed.length > 0 && clsNorm(cls.typed) === clsNorm(w.en);
     cls.locked.add(idx); cls.ans[idx] = { ok, input: cls.typed, id: w.id };
     clsPending.push({ action: "classAnswer", token: sessionToken, roomId: cls.room.id, qIndex: idx, input: cls.typed,
