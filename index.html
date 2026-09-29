@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英単語クエストver.03.1</title>
+    <title>英単語クエストver.04.01</title>
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -135,7 +135,18 @@
         .audio-btn.unavailable { opacity: 0.3; }
         #save-warn { display: none; background: var(--danger-color); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 6px; margin-bottom: 10px; text-align: center; }
         #res-mode { font-size: 13px; color: #aaa; margin-bottom: 6px; }
-    </style>
+    #cls-card{background:rgba(255,255,255,.08);border-radius:12px;padding:12px;margin:10px 0;text-align:center}
+#cls-card input{padding:10px;font-size:20px;width:8em;text-align:center;letter-spacing:4px;border-radius:8px;border:0;margin:6px 0}
+#cls-slots{font-size:34px;letter-spacing:4px;min-height:48px;margin:10px 0;font-family:monospace}
+#cls-ja{font-size:28px;font-weight:bold;margin:10px 0}
+#cls-fb{min-height:60px;font-size:22px;font-weight:bold}
+#cls-timer{height:8px;background:#0004;border-radius:4px;overflow:hidden}#cls-timer>div{height:100%;background:#f6a03b;width:100%}
+#cls-kb{margin-top:10px;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#cls-kb .row{display:flex;justify-content:center;gap:4px;margin-bottom:6px}
+#cls-kb button{flex:1;max-width:44px;min-height:46px;font-size:18px;border:0;border-radius:8px;background:#e8eaf6;color:#222;touch-action:manipulation;padding:0}
+#cls-kb button.w{max-width:80px;flex:2}#cls-kb button.go{background:#2a9d5c;color:#fff}
+#cls-kb.off{opacity:.35;pointer-events:none}
+</style>
 </head>
 <body>
 
@@ -143,7 +154,7 @@
     <div id="save-warn">⚠ 進捗を保存できません。このまま遊べますが記録は残りません。埋め込み表示やプライベートモードではなく、HTMLファイルを Safari / Chrome で直接開いてください。</div>
 
     <div id="screen-login" class="screen active">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.03.1</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.04.01</small></h1>
         <div class="stats-box" style="text-align:center;">
             <label style="display:block; margin-bottom:6px;">生徒番号</label>
             <input type="text" id="loginNumber" inputmode="numeric" placeholder="001" style="width:100%; padding:10px; border-radius:8px; border:1px solid #444; background:#0f1730; color:#fff; font-size:16px; text-align:center; margin-bottom:12px;">
@@ -156,7 +167,7 @@
     </div>
 
     <div id="screen-home" class="screen">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.03.1</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.04.01</small></h1>
         <div class="stats-box" style="font-size:12px; color:#aaa; text-align:center; padding:10px;">
             <div>👤 ログイン中: <b id="stat-studentname" style="color:#fff;"></b>（<span id="stat-studentnumber"></span>番）</div>
             <div style="margin-top:2px;"><span id="stat-studentschool"></span> ・ <span id="stat-studentgrade"></span></div>
@@ -184,6 +195,32 @@
         <button class="btn" style="background-color: var(--secondary-color); color:#1a1a2e;" onclick="openGachaScreen()">ガチャを引く (50pt)</button>
         <button class="btn btn-sub" onclick="changeScreen('screen-collection')">🏅 コレクション（バッジ）</button>
         <button class="btn btn-sub" onclick="changeScreen('screen-records')">📊 自分の記録</button>
+        <div id="cls-card">
+            <div style="font-weight:bold;margin-bottom:6px;">🎓 授業参加モード</div>
+            <div id="cls-chk">確認中…</div>
+            <div id="cls-none" style="display:none;color:#aaa;">現在オンラインの授業はありません<br><button class="btn btn-sub" style="margin-top:8px" onclick="classCheck()">🔄 更新</button></div>
+            <div id="cls-on" style="display:none;">🔴 授業が開催中です<div id="cls-on-title" style="font-size:14px"></div>
+                <input id="cls-code" inputmode="numeric" maxlength="6" placeholder="授業コード"><br>
+                <button class="btn" onclick="clsJoin()">参加する</button><div id="cls-join-msg" style="font-size:14px"></div></div>
+        </div>
+    </div>
+
+        <div id="screen-live" class="screen">
+        <h2 id="cls-title">🎓 授業</h2>
+        <div id="cls-wait" style="display:none;text-align:center;margin:30px 0">🟢 オンライン<br><br>講師が開始するのを待っています…</div>
+        <div id="cls-q" style="display:none;text-align:center">
+            <div id="cls-head"></div><div id="cls-timer"><div></div></div>
+            <div id="cls-ja"></div><div id="cls-slots"></div><div id="cls-fb"></div>
+            <div id="cls-kb"></div>
+        </div>
+        <div id="cls-end" style="display:none;text-align:center;margin:20px 0">
+            <div style="font-size:24px">授業おつかれさま！</div>
+            <div id="cls-score" style="font-size:40px;margin:14px 0"></div>
+            <div id="cls-note" style="font-size:14px"></div>
+            <div id="cls-miss" style="text-align:left;margin-top:14px"></div>
+        </div>
+        <div id="cls-msg" style="text-align:center;margin:8px"></div>
+        <button class="btn" style="background:#555;" onclick="clsLeave()">授業から出る</button>
     </div>
 
     <div id="screen-gradeTop" class="screen">
@@ -302,7 +339,7 @@
 </div>
 
 <script>
-// ===== 英単語クエスト ver.03.1 =====
+// ===== 英単語クエスト ver.04.01 =====
 // 単語データは教材ごとのファイル（data_sanseido.js / data_tokyo.js。build_data.py で生成）。
 // ログイン後、その生徒の教材ファイルだけを読み込んで courseData / courseOrder に入れる。
 var courseData = {};
@@ -710,7 +747,7 @@ function changeScreen(id) {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     document.getElementById(id).classList.add("active");
     if (id !== "screen-quiz") stopAudio();
-    if (id === "screen-home") { buildPickupList(); updateSyncWarning(); } // ゴールド語数などの進捗を反映し直す
+    if (id === "screen-home") { buildPickupList(); updateSyncWarning(); classCheck(); } // ゴールド語数などの進捗を反映し直す
     if (id === "screen-collection") buildCollectionList();
     if (id === "screen-records") buildRecordsScreen();
 }
@@ -1387,6 +1424,188 @@ let pickupsReadyPromise = null;
 window.onload = function () {
     pickupsReadyPromise = loadPickupsFromSheet();
 };
+
+/* ================= 授業参加モード ================= */
+const CLS_BASE = SUPABASE_FUNCTION_URL.replace("/functions/v1/smart-service", "");
+let cls = null, clsPoll = null, clsTick = null, clsPending = [];
+const clsEl = id => document.getElementById(id);
+const clsNorm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+function clsRest(q) {
+    return fetch(CLS_BASE + "/rest/v1/" + q, { headers: { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: "Bearer " + SUPABASE_PUBLISHABLE_KEY } }).then(r => r.json());
+}
+/* ---- ホームのカード：授業の有無を確認 ---- */
+async function classCheck() {
+    if (!currentStudent || cls) return;
+    try {
+        const since = new Date(Date.now() - 30000).toISOString();
+        const rows = await clsRest("class_rooms?select=id,title,school&status=neq.closed&last_heartbeat=gte." + since);
+        const mine = (Array.isArray(rows) ? rows : []).filter(r => !r.school || r.school === currentStudent.school);
+        clsEl("cls-chk").style.display = "none";
+        clsEl("cls-none").style.display = mine.length ? "none" : "block";
+        clsEl("cls-on").style.display = mine.length ? "block" : "none";
+        if (mine.length) clsEl("cls-on-title").textContent = mine[0].title || "";
+    } catch (e) { clsEl("cls-chk").textContent = "確認できませんでした"; }
+}
+setInterval(() => { if (document.getElementById("screen-home").classList.contains("active")) classCheck(); }, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) classCheck(); });
+
+/* ---- 入室 ---- */
+async function clsJoin() {
+    const code = clsEl("cls-code").value.trim(), msg = clsEl("cls-join-msg");
+    if (!code) { msg.textContent = "コードを入力してください"; return; }
+    if (!sessionToken) { msg.textContent = "ログインし直してください"; return; }
+    msg.textContent = "接続中…";
+    try {
+        const r = await requestSheet({ action: "classJoin", token: sessionToken, code }, 10000);
+        if (r.result !== "success") {
+            msg.textContent = r.message === "too_many_attempts" ? "間違いが続いたため、しばらく待ってください"
+                : r.message === "invalid_token" ? "ログインし直してください" : "コードが違うか、授業が終了しています";
+            return;
+        }
+        msg.textContent = "";
+        cls = { room: r.room, words: r.words, ans: {}, locked: new Set(r.answered || []), idx: -999, typed: "", firstKey: 0, recvAt: 0, resumeKey: null, done: false };
+        clsEl("cls-title").textContent = "🎓 " + (r.room.title || "授業");
+        clsBuildKb(); changeScreen("screen-live");
+        clsApply({});
+        clsPoll = setInterval(clsFetch, 1500);
+        clsTick = setInterval(clsTimer, 100);
+    } catch (e) { msg.textContent = "接続に失敗しました。もう一度お試しください"; }
+}
+async function clsFetch() {
+    if (!cls) return;
+    try {
+        const rows = await clsRest("class_rooms?id=eq." + cls.room.id + "&select=status,current_index,question_started_at");
+        if (!Array.isArray(rows)) return;
+        if (rows.length === 0) { clsEl("cls-msg").textContent = "授業が終了しました"; if (!cls.done && Object.keys(cls.ans).length) { cls.room.status = "finished"; clsApply({}); } return; }
+        clsApply(rows[0]);
+    } catch (e) { /* 次回リトライ */ }
+    clsRetry();
+}
+function clsApply(rm) {
+    Object.assign(cls.room, rm);
+    const r = cls.room;
+    if (r.status === "question") {
+        if (cls.idx !== r.current_index) { cls.idx = r.current_index; cls.typed = ""; cls.firstKey = 0; cls.recvAt = performance.now(); cls.resumeKey = r.question_started_at; }
+        else if (cls.resumeKey !== r.question_started_at) { cls.resumeKey = r.question_started_at; cls.recvAt = performance.now(); }
+    } else if (r.current_index >= 0) cls.idx = r.current_index;
+    clsRender();
+}
+/* ---- 画面 ---- */
+function clsRender() {
+    const r = cls.room, s = r.status, w = cls.words[cls.idx];
+    const showQ = (s === "question" || s === "reveal" || s === "paused") && w;
+    clsEl("cls-wait").style.display = (s === "lobby") ? "block" : "none";
+    clsEl("cls-q").style.display = showQ ? "block" : "none";
+    clsEl("cls-end").style.display = (s === "finished") ? "block" : "none";
+    if (s === "finished") { clsFinish(); return; }
+    if (!showQ) return;
+    const a = cls.ans[cls.idx], locked = cls.locked.has(cls.idx);
+    clsEl("cls-head").textContent = `第 ${cls.idx + 1} 問 / ${cls.words.length}`;
+    clsEl("cls-ja").textContent = w.ja;
+    const fb = clsEl("cls-fb");
+    if (s === "paused") fb.innerHTML = "⏸ 一時停止中";
+    else if (a) fb.innerHTML = a.ok ? '<span style="color:#5fe08f">○ 正解！</span>' : `<span style="color:#ff7b7b">× 残念…</span><br><span style="font-size:26px">${w.en}</span>`;
+    else if (locked) fb.textContent = "回答済み";
+    else if (s === "reveal") fb.innerHTML = `時間切れ<br><span style="font-size:26px">${w.en}</span>`;
+    else fb.textContent = "";
+    clsEl("cls-kb").classList.toggle("off", s !== "question" || locked);
+    clsSlots();
+}
+function clsSlots() {
+    const w = cls.words[cls.idx]; if (!w) return;
+    const a = cls.ans[cls.idx], t = a ? a.input : cls.typed, n = clsNorm(w.en).length;
+    let h = t.split("").map(c => c === " " ? "␣" : c).join("");
+    if (!a && t.length < n) h += "_".repeat(n - t.length);
+    clsEl("cls-slots").textContent = h;
+    clsEl("cls-slots").style.color = a ? (a.ok ? "#5fe08f" : "#ff7b7b") : "";
+}
+function clsTimer() {
+    if (!cls || cls.room.status !== "question") return;
+    const left = cls.room.time_limit - (performance.now() - cls.recvAt) / 1000;
+    clsEl("cls-timer").firstElementChild.style.width = Math.max(0, left / cls.room.time_limit * 100) + "%";
+    if (left <= 0 && !cls.locked.has(cls.idx)) clsSubmit();
+}
+/* ---- 画面キーボード ---- */
+function clsBuildKb() {
+    const rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm⌫", "-' ↵"];
+    clsEl("cls-kb").innerHTML = rows.map(r => '<div class="row">' + r.split("").map(k => {
+        const lab = k === " " ? "space" : k, cls_ = k === " " ? "w" : k === "↵" ? "w go" : "";
+        return `<button class="${cls_}" data-k="${k}">${k === "↵" ? "決定" : lab}</button>`;
+    }).join("") + "</div>").join("");
+    clsEl("cls-kb").onclick = e => { const b = e.target.closest("button"); if (b) clsKey(b.dataset.k); };
+}
+document.addEventListener("keydown", e => {   // 物理キーボードも使える（PC用）
+    if (!cls || !document.getElementById("screen-live").classList.contains("active")) return;
+    if (e.key === "Enter") clsKey("↵"); else if (e.key === "Backspace") clsKey("⌫");
+    else if (/^[a-zA-Z\-' ]$/.test(e.key)) clsKey(e.key.toLowerCase());
+    else return;
+    e.preventDefault();
+});
+function clsKey(k) {
+    if (!cls || cls.room.status !== "question" || cls.locked.has(cls.idx)) return;
+    if (!cls.firstKey) cls.firstKey = performance.now();
+    if (k === "⌫") cls.typed = cls.typed.slice(0, -1);
+    else if (k === "↵") { clsSubmit(); return; }
+    else if (cls.typed.length < 30) cls.typed += k;
+    clsSlots();
+}
+/* ---- 回答の送信（失敗したら端末に溜めて再送） ---- */
+function clsSubmit() {
+    if (!cls || cls.room.status !== "question" || cls.locked.has(cls.idx)) return;
+    const w = cls.words[cls.idx], idx = cls.idx;
+    const ok = cls.typed.length > 0 && clsNorm(cls.typed) === clsNorm(w.en);
+    cls.locked.add(idx); cls.ans[idx] = { ok, input: cls.typed, id: w.id };
+    clsPending.push({ action: "classAnswer", token: sessionToken, roomId: cls.room.id, qIndex: idx, input: cls.typed,
+        timeMs: Math.round(performance.now() - cls.recvAt), firstKeyMs: cls.firstKey ? Math.round(cls.firstKey - cls.recvAt) : null });
+    clsRetry(); clsRender();
+}
+async function clsRetry() {
+    const list = clsPending.splice(0);
+    for (const p of list) {
+        try {
+            const r = await requestSheet(p, 8000);
+            if (r.result !== "success" && !["no_room", "not_joined", "invalid_token"].includes(r.message)) clsPending.push(p);
+        } catch (e) { clsPending.push(p); }
+    }
+}
+/* ---- 終了処理（結果表示・成績記録・苦手度反映） ---- */
+function clsFinish() {
+    const tot = cls.words.length, list = Object.values(cls.ans), c = list.filter(a => a.ok).length;
+    clsEl("cls-score").textContent = `${c} / ${tot} 問正解`;
+    const esc = t => String(t == null ? "" : t).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+    const miss = [];
+    cls.words.forEach((w, i) => {
+        if (i > cls.idx) return;
+        const a = cls.ans[i];
+        if (a && !a.ok) miss.push({ i, w, inp: a.input || "（空欄）" });
+        else if (!a && !cls.locked.has(i)) miss.push({ i, w, inp: "（未回答）" });
+    });
+    clsEl("cls-miss").innerHTML = miss.length
+        ? '<div style="font-weight:bold;margin-bottom:6px">間違えた問題（' + miss.length + '問）</div>' + miss.map(m =>
+            `<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:8px;margin-bottom:6px">Q${m.i + 1}　${esc(m.w.ja)}<br>` +
+            `<span style="color:#5fe08f">正解：${esc(m.w.en)}</span><br><span style="color:#ff7b7b;font-size:14px">あなたの答え：${esc(m.inp)}</span></div>`).join("")
+        : "<div style=\"text-align:center\">全問正解！🎉</div>";
+    if (cls.done) return; cls.done = true;
+    let note = "";
+    if (cls.room.apply_heat) {
+        const ids = new Set(); for (const u in courseData) for (const g in courseData[u]) courseData[u][g].forEach(x => ids.add(x.id));
+        let n = 0;
+        list.forEach(a => {
+            if (!ids.has(a.id)) return;
+            const st = userLog.wordStatuses[a.id] || (userLog.wordStatuses[a.id] = { heat: 0, lastTime: 0 });
+            st.heat = a.ok ? Math.max(0, st.heat - 1) : st.heat + 2; st.lastTime = Date.now(); n++;
+        });
+        if (n) { saveLog(); pushStateToSheet(); note = "苦手度に反映しました"; }
+    }
+    clsEl("cls-note").textContent = note;
+    sendToSheet({ action: "saveSession", token: sessionToken, studiedAt: nowJstISOString(), mode: "live", grade: "授業",
+        unit: cls.room.title || "授業", questionCount: tot, correctCount: c, score: 0, scoreRaw: 0, gainedPoints: 0 });
+}
+function clsLeave() {
+    if (clsPending.length) clsRetry();
+    clearInterval(clsPoll); clearInterval(clsTick); cls = null;
+    changeScreen("screen-home");
+}
 </script>
 
 </body>
