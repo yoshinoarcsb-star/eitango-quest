@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>英単語クエスト 管理画面</title>
+<style>
+    :root {
+        --primary-color: #4a90e2;
+        --secondary-color: #f5a623;
+        --bg-color: #1a1a2e;
+        --panel-color: #16213e;
+        --text-color: #ffffff;
+        --danger-color: #e94560;
+        --success-color: #4caf50;
+    }
+    * { box-sizing: border-box; }
+    body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        margin: 0;
+        padding: 20px;
+    }
+    #app {
+        max-width: 1100px;
+        margin: 0 auto;
+        background-color: var(--panel-color);
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    h1 { text-align:center; color: var(--secondary-color); margin-top:0; font-size:22px; }
+    h2 { color: var(--secondary-color); margin: 0 0 12px; font-size:18px; }
+    #top-bar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    #sync-status { font-size:12px; color:#999; }
+    .btn {
+        padding: 10px 16px; background-color: var(--primary-color); color:#fff;
+        border:none; border-radius:8px; font-size:14px; font-weight:bold; cursor:pointer;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn.sub { background: rgba(255,255,255,0.1); font-weight:normal; }
+    .btn.danger { background: var(--danger-color); }
+    .btn.small { padding:5px 10px; font-size:12px; }
+    #tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+    #tabs button {
+        flex: 1 1 auto; min-width:110px; padding:10px; border:none; border-radius:8px;
+        background: rgba(255,255,255,0.08); color:#fff; font-size:13px; font-weight:bold; cursor:pointer;
+    }
+    #tabs button.active { background: var(--primary-color); }
+    .screen { display:none; }
+    .screen.active { display:block; }
+    .panel { background: rgba(255,255,255,0.05); border-radius:10px; padding:14px; margin-bottom:14px; }
+    .filter-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:center; }
+    input, select {
+        background:#0f1730; color:#fff; border:1px solid #444; border-radius:6px;
+        padding:8px; font-size:13px;
+    }
+    label.f { font-size:12px; color:#aaa; display:flex; flex-direction:column; gap:3px; }
+    .table-wrap { overflow:auto; max-height:55vh; border-radius:8px; }
+    table { width:100%; border-collapse:collapse; font-size:12.5px; }
+    th, td { padding:7px 8px; border-bottom:1px solid rgba(255,255,255,0.08); text-align:left; white-space:nowrap; }
+    th { color: var(--secondary-color); position:sticky; top:0; background: #10182f; }
+    tr:hover td { background: rgba(255,255,255,0.04); }
+    .count-note { font-size:12px; color:#999; margin: 4px 0 10px; }
+    .stat-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:10px; margin-bottom:14px; }
+    .stat-box { background: rgba(255,255,255,0.08); border-radius:8px; padding:12px; text-align:center; }
+    .stat-box .v { font-size:20px; font-weight:bold; color: var(--secondary-color); }
+    .stat-box .l { font-size:11px; color:#aaa; margin-top:2px; }
+    .msg { font-size:13px; margin-top:8px; min-height:16px; }
+    .msg.err { color: var(--danger-color); }
+    .msg.ok { color: var(--success-color); }
+    .add-form { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; }
+    .toggle-group { display:flex; gap:6px; margin-bottom:12px; }
+    .toggle-group button { padding:8px 14px; border:none; border-radius:6px; background:rgba(255,255,255,0.08); color:#fff; font-size:12px; cursor:pointer; }
+    .toggle-group button.active { background: var(--primary-color); }
+    #loading-overlay { text-align:center; padding:40px; color:#999; }
+</style>
+</head>
+<body>
+
+<div id="app">
+    <h1>英単語クエスト 管理画面</h1>
+    <div id="top-bar">
+        <div id="sync-status">読み込み中…</div>
+        <div>
+            <button class="btn sub" onclick="resetAdminSecret()">🔑 合言葉再入力</button>
+            <button class="btn sub" onclick="refreshAll()">🔄 更新</button>
+        </div>
+    </div>
+
+    <div id="tabs">
+        <button class="active" onclick="switchTab('students')" id="tab-btn-students">生徒管理</button>
+        <button onclick="switchTab('sessions')" id="tab-btn-sessions">成績確認</button>
+        <button onclick="switchTab('weakwords')" id="tab-btn-weakwords">苦手単語分析</button>
+        <button onclick="switchTab('progress')" id="tab-btn-progress">進捗分析</button>
+        <button onclick="switchTab('aggregate')" id="tab-btn-aggregate">期間集計</button>
+        <button onclick="switchTab('pickup')" id="tab-btn-pickup">ピックアップ単元</button>
+    </div>
+
+    <div id="loading-overlay">データを読み込んでいます…</div>
+
+    <div id="content" style="display:none;">
+
+        <!-- ============ 生徒管理 ============ -->
+        <div id="screen-students" class="screen active">
+            <div class="panel">
+                <h2>生徒を新規登録</h2>
+                <div class="add-form">
+                    <label class="f">校舎
+                        <select id="stu-school" style="width:140px;" onchange="suggestStudentNumber()"></select>
+                    </label>
+                    <label class="f">生まれた年
+                        <select id="stu-birth-year" style="width:100px;" onchange="suggestStudentNumber()"></select>
+                    </label>
+                    <label class="f">生徒番号（自動生成・上書き可）<input type="text" id="stu-number" inputmode="numeric" style="width:110px;"></label>
+                    <label class="f">氏名<input type="text" id="stu-name" style="width:120px;"></label>
+                    <label class="f">合言葉<input type="text" id="stu-pass" style="width:100px;"></label>
+                    <label class="f">学年
+                        <select id="stu-grade" style="width:110px;"></select>
+                    </label>
+                    <label class="f">教材
+                        <select id="stu-textbook" style="width:110px;"></select>
+                    </label>
+                    <button class="btn" onclick="addStudentSubmit()">＋ 追加</button>
+                </div>
+                <div class="msg" id="stu-number-note" style="color:#4a90e2;"></div>
+                <div class="msg" id="stu-msg"></div>
+            </div>
+
+            <div class="panel">
+                <h2 style="font-size:15px;">CSVで一括操作</h2>
+                <div class="add-form">
+                    <label class="f">CSVファイル（列: 生徒番号,氏名,合言葉,学年,校舎,教材。教材は「三省堂」「東京書籍」、空欄は三省堂）
+                        <input type="file" id="stu-csv-file" accept=".csv">
+                    </label>
+                    <button class="btn" onclick="importStudentsCsv(document.getElementById('stu-csv-file'))">📥 取り込む</button>
+                    <button class="btn sub" onclick="exportStudentsCsv()">📤 一覧をCSVで書き出す</button>
+                </div>
+                <div class="msg" id="stu-csv-msg"></div>
+            </div>
+
+            <div class="panel">
+                <h2 style="font-size:15px;">存在しない生徒の記録（孤立データ）</h2>
+                <div class="count-note">
+                    生徒を削除すると、その生徒の学習記録もあわせて削除されます。
+                    ここでは、それ以前に削除された生徒の記録が残っていないかを確認・削除できます。
+                </div>
+                <div class="add-form">
+                    <button class="btn sub" onclick="loadOrphanRecords()">🔍 確認する</button>
+                    <button class="btn danger" onclick="deleteAllOrphans()">🗑 まとめて削除</button>
+                </div>
+                <table id="orphan-table" style="margin-top:10px; display:none;">
+                    <thead><tr><th>生徒番号</th><th>学習記録</th><th>単語進捗</th><th>弱点単語</th><th>進捗スナップショット</th><th></th></tr></thead>
+                    <tbody id="orphan-tbody"></tbody>
+                </table>
+                <div class="msg" id="orphan-msg"></div>
+            </div>
+
+            <div class="panel">
+                <div class="filter-row">
+                    <label class="f">検索（番号/氏名）<input type="text" id="stu-search" oninput="renderStudents()" placeholder="例: 001 / 田中"></label>
+                    <label class="f">学年
+                        <select id="stu-filter-grade" onchange="renderStudents()"></select>
+                    </label>
+                    <label class="f">校舎
+                        <select id="stu-filter-school" onchange="renderStudents()"></select>
+                    </label>
+                    <label class="f">教材
+                        <select id="stu-filter-textbook" onchange="renderStudents()"></select>
+                    </label>
+                </div>
+                <div class="count-note" id="stu-count"></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>番号</th><th>氏名</th><th>ニックネーム<br><span style="font-weight:normal;font-size:10px;">(ランキング表示名)</span></th><th>学年</th><th>校舎</th><th>教材</th><th>合言葉</th><th>進捗(ゴールド)</th><th></th></tr></thead>
+                        <tbody id="stu-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ 成績確認 ============ -->
+        <div id="screen-sessions" class="screen">
+            <div class="panel">
+                <div class="filter-row">
+                    <label class="f">検索（番号/氏名）<input type="text" id="sess-search" oninput="renderSessions()" placeholder="例: 001 / 田中"></label>
+                    <label class="f">学年
+                        <select id="sess-filter-grade" onchange="renderSessions()"></select>
+                    </label>
+                    <label class="f">校舎
+                        <select id="sess-filter-school" onchange="renderSessions()"></select>
+                    </label>
+                    <label class="f">Unit
+                        <select id="sess-filter-unit" onchange="renderSessions()"><option value="">すべて</option></select>
+                    </label>
+                    <label class="f">モード
+                        <select id="sess-filter-mode" onchange="renderSessions()">
+                            <option value="">すべて</option>
+                            <option value="test">テスト</option>
+                            <option value="practice">練習</option>
+                            <option value="typing">タイピング</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="count-note" id="sess-count"></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>日時</th><th>番号</th><th>氏名</th><th>学年</th><th>校舎</th><th>Unit</th><th>モード</th><th>正答数/問題数</th><th>スコア</th><th>アイテムなし</th><th>獲得pt</th></tr></thead>
+                        <tbody id="sess-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ 苦手単語分析 ============ -->
+        <div id="screen-weakwords" class="screen">
+            <div class="panel">
+                <div class="toggle-group">
+                    <button class="active" id="ww-toggle-student" onclick="setWeakwordMode('student')">生徒別</button>
+                    <button id="ww-toggle-rank" onclick="setWeakwordMode('rank')">全体ランキング</button>
+                </div>
+
+                <div id="ww-student-panel">
+                    <div class="filter-row">
+                        <label class="f">生徒を選択
+                            <select id="ww-student-select" onchange="renderWeakWords()"></select>
+                        </label>
+                    </div>
+                    <div class="count-note" id="ww-student-count"></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>単語</th><th>苦手度(heat)</th><th>更新日時</th></tr></thead>
+                            <tbody id="ww-student-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="ww-rank-panel" style="display:none;">
+                    <div class="count-note">全生徒の合計 heat が高い（=みんなが間違えやすい）単語 上位30件</div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>順位</th><th>単語</th><th>該当生徒数</th><th>合計heat</th></tr></thead>
+                            <tbody id="ww-rank-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ 進捗分析 ============ -->
+        <div id="screen-progress" class="screen">
+            <div class="panel">
+                <h2 style="font-size:15px;">生徒別 進捗詳細</h2>
+                <div class="filter-row">
+                    <label class="f">学年
+                        <select id="pa-detail-grade" onchange="buildDetailStudentOptions()"></select>
+                    </label>
+                    <label class="f">生徒
+                        <select id="pa-detail-student" onchange="renderStudentDetail()"></select>
+                    </label>
+                </div>
+                <div class="count-note" id="pa-detail-summary">学年と生徒を選択してください</div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Unit</th><th>定着率</th><th>ゴールド数/単語数</th></tr></thead>
+                        <tbody id="pa-detail-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2 style="font-size:15px;">単元別 定着率（定着率が低い順）</h2>
+                <div class="filter-row">
+                    <label class="f">学年
+                        <select id="pa-grade" onchange="renderUnitMastery()"></select>
+                    </label>
+                </div>
+                <div class="count-note">「ゴールド数 ÷ (その単元の生徒数×単語数)」で計算しています。data_sanseido.js / data_tokyo.js / data_mitsumura.js が必要です。</div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>教材 / 学年</th><th>Unit</th><th>定着率</th><th>ゴールド数/対象語数</th></tr></thead>
+                        <tbody id="pa-unit-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2 style="font-size:15px;">プレイが止まっている生徒</h2>
+                <div class="filter-row">
+                    <label class="f">何日プレイが無ければ表示するか
+                        <input type="number" id="pa-days" value="7" min="1" style="width:80px;" oninput="renderStalledStudents()">
+                    </label>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>番号</th><th>氏名</th><th>学年</th><th>最終プレイからの日数</th></tr></thead>
+                        <tbody id="pa-stalled-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ 期間集計 ============ -->
+        <div id="screen-aggregate" class="screen">
+            <div class="panel">
+                <div class="filter-row">
+                    <label class="f">開始日<input type="date" id="agg-from" onchange="renderAggregate()"></label>
+                    <label class="f">終了日<input type="date" id="agg-to" onchange="renderAggregate()"></label>
+                    <label class="f">学年
+                        <select id="agg-filter-grade" onchange="renderAggregate()"></select>
+                    </label>
+                    <label class="f">校舎
+                        <select id="agg-filter-school" onchange="renderAggregate()"></select>
+                    </label>
+                </div>
+
+                <div class="stat-grid" id="agg-stats"></div>
+
+                <h2 style="font-size:14px;">生徒別集計</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>番号</th><th>氏名</th><th>学年</th><th>プレイ回数</th><th>平均スコア</th><th>平均(アイテムなし)</th><th>合計獲得pt</th></tr></thead>
+                        <tbody id="agg-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ ピックアップ単元 ============ -->
+        <div id="screen-pickup" class="screen">
+            <div class="panel">
+                <h2>ピックアップ単元の設定</h2>
+                <div class="count-note">校舎と学年を選ぶと、その組み合わせの生徒のホーム画面に「📌 今週のピックアップ」として表示される単元を設定できます。</div>
+                <div class="filter-row">
+                    <label class="f">教材
+                        <select id="pk-textbook" onchange="onPickupTextbookChange()" style="width:120px;"></select>
+                    </label>
+                    <label class="f">校舎
+                        <select id="pk-school" onchange="renderPickups()" style="width:150px;"></select>
+                    </label>
+                    <label class="f">学年
+                        <select id="pk-grade" onchange="renderPickups()" style="width:120px;"></select>
+                    </label>
+                </div>
+                <div class="count-note" id="pk-target-note"></div>
+
+                <div class="add-form">
+                    <label class="f">教材の学年
+                        <select id="pk-course-grade" onchange="buildPickupUnitOptions()" style="width:120px;"></select>
+                    </label>
+                    <label class="f">Unit
+                        <select id="pk-unit" style="width:220px;"></select>
+                    </label>
+                    <button class="btn" onclick="addPickupSubmit()">＋ 追加</button>
+                </div>
+                <div class="msg" id="pk-msg"></div>
+            </div>
+
+            <div class="panel">
+                <h2 style="font-size:15px;">設定済みのピックアップ</h2>
+                <div class="count-note" id="pk-count"></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>校舎</th><th>学年</th><th>教材の学年</th><th>Unit</th><th>更新日時</th><th></th></tr></thead>
+                        <tbody id="pk-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="count-note" style="margin-top:10px;">
+                    一覧は「選択中の校舎・学年に実際に表示されるもの」を出しています。校舎を「すべての校舎」、学年を「すべての学年」にして登録すると、全生徒に共通で表示されます。
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- 単元一覧を選択式にするため、index.html と同じ data.js を読み込みます（同じフォルダに置いてください） -->
+<script src="data_sanseido.js" onerror="window.__dataJsMissing = true;"></script>
+<script src="data_tokyo.js" onerror="window.__dataJsMissing = true;"></script>
+<script src="data_mitsumura.js" onerror="window.__dataJsMissing = true;"></script>
+<script>
+/* ---- Supabase連携設定 ----
+   このファイルはネットに公開しない（GitHub等にアップロードしない）でください。 */
+const SUPABASE_FUNCTION_URL = "https://sakkrwfnaromqzlfgatr.supabase.co/functions/v1/smart-service";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_MzlYHvTYTnO5plwIWU7Dnw_Wo8HuWK5";
+const ADMIN_SECRET_KEY = "eq_admin_secret";
+function getAdminSecret() {
+    let v = sessionStorage.getItem(ADMIN_SECRET_KEY);
+    if (!v) {
+        v = prompt("管理者合言葉を入力してください") || "";
+        sessionStorage.setItem(ADMIN_SECRET_KEY, v);
+    }
+    return v;
+}
+function resetAdminSecret() {
+    sessionStorage.removeItem(ADMIN_SECRET_KEY);
+    location.reload();
+}
+
+/* ---- マスタ設定（校舎・学年の選択肢。ここを直せば全画面に反映されます） ---- */
+const SCHOOLS = [
+    "住道加納校", "鴻池駅前校", "鶴見徳庵校", "都島中通校",
+    "寝屋川音羽校", "大東三箇校", "野崎駅前校", "阿倍野校"
+];
+const GRADE_OPTIONS = ["小学生", "中学1年", "中学2年", "中学3年", "その他"];
+
+// 生徒番号の自動採番用：校舎ごとのコード（SCHOOLSの並び順で 1, 2, ... を割り当て。ゼロ埋めしない）
+// 校舎を増やす場合はSCHOOLSに追記するだけでよい（末尾に追加すれば既存コードは変わらない）
+const SCHOOL_CODES = {};
+SCHOOLS.forEach((name, i) => { SCHOOL_CODES[name] = String(i + 1); });
+
+let allStudents = [];
+let allSessions = [];
+let allWeakWords = [];
+let allWordProgress = [];
+let allPickups = [];
+let weakwordMode = "student";
+let currentTab = "students";
+let editingStudentNumber = null;
+let wordProgressByStudent = {}; // studentNumber -> [{wordId,heat,lastTime}]
+let wordMeta = {};              // wordId -> {grade, unit}
+let gradeWordTotal = {};        // "教材ID|学年" -> 教材上の総単語数
+let loaded = { sessions: false, weakwords: false, pickups: false }; // students/wordprogressは初期ロードで常時取得
+
+/* ---- Supabase Edge Functionを呼び出す共通関数（index.htmlと同じ仕組み+管理者合言葉を自動付与） ---- */
+function requestSheet(params, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs || 10000);
+    const body = Object.assign({ adminSecret: getAdminSecret() }, params);
+    return fetch(SUPABASE_FUNCTION_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": "Bearer " + SUPABASE_PUBLISHABLE_KEY
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal
+    }).then(res => {
+        if (!res.ok) throw new Error("http_" + res.status);
+        return res.json();
+    }).finally(() => clearTimeout(timer));
+}
+
+/* ---- 失敗しても自動で待って再試行する（index.htmlと同じ仕組み） ---- */
+function requestSheetRetry(params, opts) {
+    const o = Object.assign({ timeoutMs: 10000, retries: 2, backoffMs: 2500 }, opts || {});
+    function attempt(n) {
+        return requestSheet(params, o.timeoutMs).catch(err => {
+            if (n >= o.retries) throw err;
+            return new Promise(resolve => setTimeout(resolve, o.backoffMs * (n + 1))).then(() => attempt(n + 1));
+        });
+    }
+    return attempt(0);
+}
+
+function setStatus(text) { document.getElementById("sync-status").innerText = text; }
+
+/* ---- 校舎・学年のプルダウンをまとめて組み立てる ---- */
+function fillSelect(id, values, firstLabel, firstValue) {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const head = firstLabel == null ? "" : `<option value="${escapeAttr(firstValue == null ? "" : firstValue)}">${escapeHtml(firstLabel)}</option>`;
+    sel.innerHTML = head + values.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join("");
+}
+
+function buildMasterOptions() {
+    // 生徒登録フォーム
+    fillSelect("stu-grade", GRADE_OPTIONS, "未設定");
+    document.getElementById("stu-textbook").innerHTML = textbookOptionsHtml("sanseido");
+    document.getElementById("stu-filter-textbook").innerHTML = '<option value="">すべて</option>' + textbookOptionsHtml("");
+    fillSelect("stu-school", SCHOOLS, "未設定");
+    buildBirthYearOptions();
+    // 各種フィルタ
+    fillSelect("stu-filter-grade", GRADE_OPTIONS, "すべて");
+    fillSelect("stu-filter-school", SCHOOLS, "すべて");
+    fillSelect("sess-filter-grade", GRADE_OPTIONS, "すべて");
+    fillSelect("sess-filter-school", SCHOOLS, "すべて");
+    fillSelect("agg-filter-grade", GRADE_OPTIONS, "すべて");
+    fillSelect("agg-filter-school", SCHOOLS, "すべて");
+    fillSelect("pa-grade", GRADE_OPTIONS, "すべての学年");
+    fillSelect("pa-detail-grade", GRADE_OPTIONS, "学年を選択", "");
+    // ピックアップ単元
+    fillSelect("pk-school", SCHOOLS, "すべての校舎（共通）");
+    fillSelect("pk-grade", GRADE_OPTIONS, "すべての学年（共通）");
+    document.getElementById("pk-textbook").innerHTML = textbookOptionsHtml("sanseido");
+    fillSelect("pk-course-grade", courseGradeList(), null);
+    buildPickupUnitOptions();
+}
+
+/* ---- 生徒番号の自動採番：校舎コード(2桁) + 生まれた年の下2桁(2桁) + 連番(2桁〜) ---- */
+function buildBirthYearOptions() {
+    const sel = document.getElementById("stu-birth-year");
+    if (!sel) return;
+    const thisYear = new Date().getFullYear();
+    const years = [];
+    for (let y = thisYear; y >= thisYear - 20; y--) years.push(y);
+    sel.innerHTML = '<option value="">生年を選択</option>' + years.map(y => `<option value="${y}">${y}年</option>`).join("");
+}
+
+function suggestStudentNumber() {
+    const school = document.getElementById("stu-school").value;
+    const birthYear = document.getElementById("stu-birth-year").value;
+    const note = document.getElementById("stu-number-note");
+    if (!school || !birthYear) { note.innerText = ""; return; }
+
+    const code = SCHOOL_CODES[school];
+    const yy = String(birthYear).slice(-2);
+    const prefix = code + yy;
+
+    // 同じ「校舎+生年」の組み合わせで、既に使われている一番大きい連番を探す
+    let maxSeq = 0;
+    const re = new RegExp("^" + prefix + "(\\d+)$");
+    allStudents.forEach(s => {
+        const m = String(s.number).match(re);
+        if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+    });
+    const nextSeq = maxSeq + 1;
+    const suggested = prefix + String(nextSeq).padStart(2, "0");
+
+    document.getElementById("stu-number").value = suggested;
+    note.innerText = `${school}（コード${code}） / ${birthYear}年生まれ / この組み合わせで${nextSeq}人目 → 生徒番号「${suggested}」`;
+}
+
+/* ---- data.js から「単語ID→学年/Unit」の対応表と、学年ごとの総単語数を作る ---- */
+function buildWordMeta() {
+    wordMeta = {};
+    gradeWordTotal = {};
+    if (!hasCourseData()) return;
+    for (const tb in TEXTBOOKS) {
+        const cd = cdOf(tb);
+        for (const unit in cd) {
+            for (const grade in cd[unit]) {
+                cd[unit][grade].forEach(w => { wordMeta[w.id] = { grade, unit, tb }; });
+                const k = tb + "|" + grade;   // 教材ごとに学年の総単語数を持つ
+                gradeWordTotal[k] = (gradeWordTotal[k] || 0) + cd[unit][grade].length;
+            }
+        }
+    }
+}
+
+/* ---- allWordProgress を生徒番号ごとに引きやすい形にまとめておく（毎回全件走査しないため） ---- */
+function indexWordProgress() {
+    wordProgressByStudent = {};
+    allWordProgress.forEach(w => {
+        const key = String(w.studentNumber);
+        (wordProgressByStudent[key] || (wordProgressByStudent[key] = [])).push(w);
+    });
+}
+
+/* ---- 生徒番号から校舎を引く（Sessionsシートには校舎が無いため生徒マスタで補う） ---- */
+let schoolByNumber = {};
+function buildSchoolIndex() {
+    schoolByNumber = {};
+    allStudents.forEach(s => { schoolByNumber[String(s.number)] = s.school || ""; });
+}
+function schoolOf(number) { return schoolByNumber[String(number)] || ""; }
+
+function switchTab(name) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.querySelectorAll("#tabs button").forEach(b => b.classList.remove("active"));
+    document.getElementById("screen-" + name).classList.add("active");
+    document.getElementById("tab-btn-" + name).classList.add("active");
+    currentTab = name;
+    loadTabData(name);
+}
+
+/* ---- タブごとに必要なデータだけを、まだ取っていなければ取得する ---- */
+const TAB_REQUIRES = {
+    students: [],
+    sessions: ["sessions"],
+    weakwords: ["weakwords"],
+    progress: ["sessions"], // wordprogressは初期ロード時に取得済み
+    aggregate: ["sessions"],
+    pickup: ["pickups"],
+};
+
+function fetchAction(action) {
+    return requestSheetRetry({ action: action }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 }).then(res => {
+        if (!res || res.result !== "success") throw new Error("bad_response");
+        return res;
+    });
+}
+
+function loadTabData(name) {
+    const needed = (TAB_REQUIRES[name] || []).filter(a => !loaded[a]);
+    if (needed.length === 0) { renderTab(name); return; }
+    setStatus("読み込み中…");
+    Promise.all(needed.map(a => fetchAction(a).then(res => {
+        if (a === "sessions") allSessions = res.sessions || [];
+        if (a === "weakwords") allWeakWords = res.words || [];
+        if (a === "pickups") allPickups = res.pickups || [];
+        loaded[a] = true;
+    }))).then(() => {
+        setStatus("最終更新: " + new Date().toLocaleString("ja-JP"));
+        renderTab(name);
+    }).catch(() => {
+        setStatus("データ取得に失敗しました。「更新」を押し直してください。");
+    });
+}
+
+function renderTab(name) {
+    if (name === "students") renderStudents();
+    else if (name === "sessions") { buildUnitFilterOptions(); renderSessions(); }
+    else if (name === "weakwords") renderWeakWords();
+    else if (name === "progress") renderProgressAnalysis();
+    else if (name === "aggregate") renderAggregate();
+    else if (name === "pickup") { buildPickupUnitOptions(); renderPickups(); }
+}
+
+function renderProgressAnalysis() {
+    renderStudentDetail();
+    renderUnitMastery();
+    renderStalledStudents();
+}
+
+/* ---- 生徒・単語進捗だけは常に必要なので、最初にまとめて読み込む ---- */
+function initialLoad() {
+    setStatus("読み込み中…");
+    document.getElementById("loading-overlay").style.display = "block";
+    document.getElementById("content").style.display = "none";
+    Promise.all([
+        fetchAction("students"),
+        fetchAction("wordprogress"),
+    ]).then(([sRes, wpRes]) => {
+        allStudents = sRes.students || [];
+        allWordProgress = wpRes.words || [];
+        buildSchoolIndex();
+        indexWordProgress();
+        buildWordMeta();
+        buildWeakwordStudentOptions();
+        setDefaultAggDates();
+        setStatus("最終更新: " + new Date().toLocaleString("ja-JP"));
+        document.getElementById("loading-overlay").style.display = "none";
+        document.getElementById("content").style.display = "block";
+        loadTabData(currentTab);
+    }).catch(() => {
+        setStatus("データ取得に失敗しました。電波の良い場所で「更新」を押し直してください。");
+        document.getElementById("loading-overlay").innerText = "データ取得に失敗しました。上の「更新」ボタンを押してください。";
+    });
+}
+
+/* ---- 「更新」ボタン：すべてのキャッシュを破棄して取り直す ---- */
+function refreshAll() {
+    loaded = { sessions: false, weakwords: false, pickups: false };
+    initialLoad();
+}
+
+/* ============ 生徒管理 ============ */
+function renderStudents() {
+    const q = (document.getElementById("stu-search").value || "").trim().toLowerCase();
+    const gradeFilter = document.getElementById("stu-filter-grade").value;
+    const schoolFilter = document.getElementById("stu-filter-school").value;
+    const tbFilter = document.getElementById("stu-filter-textbook").value;
+    let list = allStudents.filter(s => {
+        if (gradeFilter && s.grade !== gradeFilter) return false;
+        if (schoolFilter && (s.school || "") !== schoolFilter) return false;
+        if (tbFilter && tbOf(s) !== tbFilter) return false;
+        if (!q) return true;
+        return String(s.number).toLowerCase().includes(q) || (s.name || "").toLowerCase().includes(q) || (s.nickname || "").toLowerCase().includes(q);
+    });
+    list = list.slice().sort((a, b) => String(a.number).localeCompare(String(b.number), "ja", { numeric: true }));
+    document.getElementById("stu-count").innerText = list.length + " 名 / 全 " + allStudents.length + " 名";
+    document.getElementById("stu-tbody").innerHTML = list.map(s =>
+        String(s.number) === String(editingStudentNumber) ? studentEditRowHtml(s) : studentRowHtml(s)
+    ).join("") || `<tr><td colspan="9" style="color:#999;">該当する生徒がいません</td></tr>`;
+}
+
+function studentRowHtml(s) {
+    return `
+        <tr>
+            <td>${escapeHtml(s.number)}</td>
+            <td>${escapeHtml(s.name)}</td>
+            <td>${escapeHtml(s.nickname || "（未設定）")}${s.ranking_enabled === false ? ' <span style="color:#999;font-size:11px;">[ランキングOFF]</span>' : ""}</td>
+            <td>${studentGradeSelectHtml(s)}</td>
+            <td>${escapeHtml(s.school || "")}</td>
+            <td>${escapeHtml(tbLabel(tbOf(s)))}</td>
+            <td>${escapeHtml(s.passcode)}</td>
+            <td>${escapeHtml(studentProgressText(s))}</td>
+            <td>
+                <button class="btn sub small" onclick="startEditStudent('${escapeAttr(s.number)}')">編集</button>
+                <button class="btn sub small" onclick="openReport('${escapeAttr(s.number)}')">成績書</button>
+                <button class="btn sub small" onclick="resetProgressConfirm('${escapeAttr(s.number)}','${escapeAttr(s.name)}')">進捗リセット</button>
+                <button class="btn danger small" onclick="deleteStudentConfirm('${escapeAttr(s.number)}','${escapeAttr(s.name)}')">削除</button>
+            </td>
+        </tr>`;
+}
+
+function studentEditRowHtml(s) {
+    const schoolOpts = ['<option value="">未設定</option>'].concat(
+        SCHOOLS.map(sc => `<option value="${escapeAttr(sc)}"${sc === (s.school || "") ? " selected" : ""}>${escapeHtml(sc)}</option>`)
+    ).join("");
+    return `
+        <tr>
+            <td>${escapeHtml(s.number)}</td>
+            <td><input type="text" id="edit-name" value="${escapeAttr(s.name)}" style="width:110px;"></td>
+            <td>
+                <input type="text" id="edit-nick" value="${escapeAttr(s.nickname || "")}" maxlength="12" style="width:110px;">
+                <br><button class="btn sub small" style="margin-top:4px;" onclick="resetNicknameConfirm('${escapeAttr(s.number)}')">自動生成に戻す</button>
+            </td>
+            <td>${studentGradeSelectHtml(s)}</td>
+            <td><select id="edit-school">${schoolOpts}</select></td>
+            <td><select id="edit-textbook">${textbookOptionsHtml(tbOf(s))}</select></td>
+            <td><input type="text" id="edit-pass" value="${escapeAttr(s.passcode)}" style="width:90px;"></td>
+            <td>${escapeHtml(studentProgressText(s))}</td>
+            <td>
+                <button class="btn small" onclick="saveEditStudent('${escapeAttr(s.number)}')">保存</button>
+                <button class="btn sub small" onclick="cancelEditStudent()">キャンセル</button>
+            </td>
+        </tr>`;
+}
+
+/* ランキング表示名を自動生成（例：あおいねこ37）に戻す。不適切なニックネームの対処用 */
+function resetNicknameConfirm(number) {
+    if (!confirm(`${number}番のニックネームを自動生成に戻します。よろしいですか？\n（生徒は設定画面からまた変更できます）`)) return;
+    requestSheet({ action: "resetNickname", number }).then(res => {
+        if (res && res.result === "success") {
+            const s = allStudents.find(st => String(st.number) === String(number));
+            if (s) s.nickname = res.nickname;
+            renderStudents();
+        } else {
+            alert("ニックネームを戻せませんでした");
+        }
+    }).catch(() => alert("通信エラーが発生しました"));
+}
+
+function startEditStudent(number) { editingStudentNumber = number; renderStudents(); }
+
+/* 成績書（report.html）を新しいタブで開く。同じフォルダに置いてある想定 */
+function openReport(number) {
+    window.open("report.html?number=" + encodeURIComponent(number), "_blank");
+}
+function cancelEditStudent() { editingStudentNumber = null; renderStudents(); }
+
+function saveEditStudent(number) {
+    const name = document.getElementById("edit-name").value.trim();
+    const school = document.getElementById("edit-school").value;
+    const passcode = document.getElementById("edit-pass").value.trim();
+    const textbook = document.getElementById("edit-textbook").value;
+    if (!name || !passcode) { alert("氏名と合言葉は必須です"); return; }
+    const cur = allStudents.find(st => String(st.number) === String(number));
+    if (cur && tbOf(cur) !== textbook &&
+        !confirm(`教材を「${tbLabel(tbOf(cur))}」から「${tbLabel(textbook)}」に変更します。\nこれまでの進捗は新しい教材では引き継がれません（データ自体は残ります）。よろしいですか？`)) return;
+    const payload = { action: "updateStudent", number, name, passcode, school, textbook };
+    const nickEl = document.getElementById("edit-nick");
+    const nickname = nickEl ? nickEl.value.trim() : "";
+    if (cur && nickEl && nickname !== (cur.nickname || "")) {
+        if (!nickname) { alert("ニックネームは空にできません。自動生成に戻す場合は「自動生成に戻す」ボタンを使ってください"); return; }
+        payload.nickname = nickname;
+    }
+    requestSheet(payload).then(res => {
+        if (res && res.result === "success") {
+            const s = allStudents.find(st => String(st.number) === String(number));
+            if (s) { s.name = name; s.school = school; s.passcode = passcode; s.textbook = textbook; if (payload.nickname) s.nickname = payload.nickname; }
+            editingStudentNumber = null;
+            buildSchoolIndex();
+            buildWeakwordStudentOptions();
+            renderStudents();
+        } else {
+            alert("更新に失敗しました");
+        }
+    }).catch(() => alert("通信エラーが発生しました"));
+}
+
+/* その生徒の「ゴールド数 / その学年の総単語数」を返す（data.js・wordprogressが無ければ"-"） */
+function studentProgressText(s) {
+    const grade = s.grade || "";
+    const tb = tbOf(s);
+    const total = gradeWordTotal[tb + "|" + grade];
+    if (!total) return "-";
+    const rows = wordProgressByStudent[String(s.number)] || [];
+    let gold = 0;
+    rows.forEach(w => {
+        const meta = wordMeta[w.wordId];
+        if (meta && meta.tb === tb && meta.grade === grade && Number(w.heat) === 0) gold++;
+    });
+    return gold + " / " + total;
+}
+
+function resetProgressConfirm(number, name) {
+    if (!confirm(`${name}（${number}番）の単語の進捗（ゴールド状況など）をすべてリセットします。元に戻せません。よろしいですか？`)) return;
+    requestSheet({ action: "resetStudentProgress", number }).then(res => {
+        if (res && res.result === "success") {
+            allWordProgress = allWordProgress.filter(w => String(w.studentNumber) !== String(number));
+            indexWordProgress();
+            renderStudents();
+            alert("リセットしました");
+        } else {
+            alert("リセットに失敗しました");
+        }
+    }).catch(() => alert("通信エラーが発生しました"));
+}
+
+/* ---- CSVで一括登録／書き出し ---- */
+function exportStudentsCsv() {
+    const header = ["生徒番号", "氏名", "合言葉", "学年", "校舎", "教材"].join(",");
+    const lines = allStudents.map(s => [s.number, s.name, s.passcode, s.grade || "", s.school || "", tbLabel(tbOf(s))].map(csvEscape).join(","));
+    downloadText([header].concat(lines).join("\r\n"), "students_" + toDateInputValue(new Date()) + ".csv", "text/csv;charset=utf-8");
+}
+
+function csvEscape(v) {
+    v = String(v == null ? "" : v);
+    return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+
+function downloadText(text, filename, mime) {
+    const blob = new Blob(["\uFEFF" + text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function parseCsv(text) {
+    const rows = [];
+    let row = [], field = "", inQuotes = false;
+    const s = text.replace(/\r\n/g, "\n");
+    for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (inQuotes) {
+            if (c === '"') { if (s[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; } }
+            else field += c;
+        } else if (c === '"') inQuotes = true;
+        else if (c === ",") { row.push(field); field = ""; }
+        else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+        else field += c;
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => !(r.length === 1 && r[0] === ""));
+}
+
+function importStudentsCsv(fileInput) {
+    const file = fileInput.files && fileInput.files[0];
+    const msg = document.getElementById("stu-csv-msg");
+    msg.className = "msg";
+    if (!file) { msg.className = "msg err"; msg.innerText = "CSVファイルを選択してください"; return; }
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const rows = parseCsv(String(e.target.result));
+        if (rows.length < 2) { msg.className = "msg err"; msg.innerText = "データが見つかりませんでした"; return; }
+        const header = rows[0];
+        const idx = {
+            number: header.indexOf("生徒番号"), name: header.indexOf("氏名"),
+            passcode: header.indexOf("合言葉"), grade: header.indexOf("学年"), school: header.indexOf("校舎"), textbook: header.indexOf("教材"),
+        };
+        if (idx.number < 0 || idx.name < 0 || idx.passcode < 0) {
+            msg.className = "msg err";
+            msg.innerText = "ヘッダーに「生徒番号」「氏名」「合言葉」が必要です";
+            return;
+        }
+        const students = rows.slice(1).map(r => ({
+            number: (r[idx.number] || "").trim(),
+            name: (r[idx.name] || "").trim(),
+            passcode: (r[idx.passcode] || "").trim(),
+            grade: idx.grade >= 0 ? (r[idx.grade] || "").trim() : "",
+            school: idx.school >= 0 ? (r[idx.school] || "").trim() : "",
+            textbook: idx.textbook >= 0 ? tbIdFromText(r[idx.textbook]) : "sanseido", // 空欄・列なしは三省堂
+        })).filter(s => s.number && s.name && s.passcode);
+
+        if (!students.length) { msg.className = "msg err"; msg.innerText = "有効なデータがありませんでした"; return; }
+        if (!confirm(`${students.length}件を登録します（既存の生徒番号はスキップされます）。よろしいですか？`)) return;
+
+        msg.innerText = "取り込み中…";
+        requestSheet({ action: "addStudents", students }).then(res => {
+            if (res && res.result === "success") {
+                msg.className = "msg ok";
+                msg.innerText = `${res.added}件登録しました${res.skipped ? "（" + res.skipped + "件は重複などでスキップ）" : ""}`;
+                fileInput.value = "";
+                refreshStudentsOnly();
+            } else {
+                msg.className = "msg err";
+                msg.innerText = "取り込みに失敗しました";
+            }
+        }).catch(() => { msg.className = "msg err"; msg.innerText = "通信エラーが発生しました"; });
+    };
+    reader.readAsText(file, "UTF-8");
+}
+
+function refreshStudentsOnly() {
+    return Promise.all([fetchAction("students"), fetchAction("wordprogress")]).then(([sRes, wpRes]) => {
+        allStudents = sRes.students || [];
+        allWordProgress = wpRes.words || [];
+        buildSchoolIndex();
+        indexWordProgress();
+        buildWeakwordStudentOptions();
+        renderStudents();
+    }).catch(() => alert("最新データの取得に失敗しました。「更新」ボタンを押してください。"));
+}
+
+/* 学年変更用のプルダウン（選択すると即保存） */
+function studentGradeSelectHtml(s) {
+    const current = s.grade || "";
+    const opts = ['<option value="">未設定</option>'].concat(
+        GRADE_OPTIONS.map(g => `<option value="${escapeAttr(g)}"${g === current ? " selected" : ""}>${escapeHtml(g)}</option>`)
+    );
+    return `<select onchange="updateStudentGradeInline(this,'${escapeAttr(s.number)}')">${opts.join("")}</select>`;
+}
+
+function updateStudentGradeInline(selectEl, number) {
+    const grade = selectEl.value;
+    selectEl.disabled = true;
+    requestSheet({ action: "updateStudent", number, grade }).then(res => {
+        selectEl.disabled = false;
+        if (res && res.result === "success") {
+            const s = allStudents.find(st => String(st.number) === String(number));
+            if (s) s.grade = grade;
+            buildWeakwordStudentOptions();
+        } else {
+            alert("学年の更新に失敗しました");
+            renderStudents();
+        }
+    }).catch(() => {
+        selectEl.disabled = false;
+        alert("通信エラーが発生しました");
+        renderStudents();
+    });
+}
+
+function addStudentSubmit() {
+    const number = (document.getElementById("stu-number").value || "").trim();
+    const name = (document.getElementById("stu-name").value || "").trim();
+    const passcode = (document.getElementById("stu-pass").value || "").trim();
+    const grade = document.getElementById("stu-grade").value;
+    const school = document.getElementById("stu-school").value;
+    const textbook = document.getElementById("stu-textbook").value;
+    const msg = document.getElementById("stu-msg");
+    msg.className = "msg";
+    if (!number || !name || !passcode) {
+        msg.className = "msg err";
+        msg.innerText = "生徒番号・氏名・合言葉は必須です";
+        return;
+    }
+    msg.innerText = "登録中…";
+    requestSheet({ action: "addStudent", number, name, passcode, grade, school, textbook }).then(res => {
+        if (res && res.result === "success") {
+            msg.className = "msg ok";
+            msg.innerText = "登録しました";
+            ["stu-number", "stu-name", "stu-pass"].forEach(id => document.getElementById(id).value = "");
+            // 学年・校舎・生まれた年は連続登録しやすいよう選択を残し、次の生徒番号を自動で提案する
+            refreshStudentsOnly().then(() => suggestStudentNumber());
+        } else {
+            msg.className = "msg err";
+            msg.innerText = (res && res.message === "duplicate") ? "この生徒番号は既に登録されています（番号を再提案しました）" : "登録に失敗しました";
+            if (res && res.message === "duplicate") refreshStudentsOnly().then(() => suggestStudentNumber());
+        }
+    }).catch(() => {
+        msg.className = "msg err";
+        msg.innerText = "通信エラーが発生しました";
+    });
+}
+
+function deleteStudentConfirm(number, name) {
+    if (!confirm(`生徒番号 ${number}（${name}）を削除します。学習記録もあわせて削除されます。よろしいですか？`)) return;
+    requestSheet({ action: "deleteStudent", number }).then(res => {
+        if (res && res.result === "success") {
+            allStudents = allStudents.filter(s => String(s.number) !== String(number));
+            allWordProgress = allWordProgress.filter(w => String(w.studentNumber) !== String(number));
+            allSessions = allSessions.filter(s => String(s.studentNumber) !== String(number));
+            allWeakWords = allWeakWords.filter(w => String(w.studentNumber) !== String(number));
+            indexWordProgress();
+            renderStudents();
+            buildWeakwordStudentOptions();
+        } else {
+            alert("削除に失敗しました");
+        }
+    }).catch(() => alert("通信エラーが発生しました"));
+}
+
+/* ---- 存在しない生徒の記録（孤立データ）の確認・削除 ---- */
+let lastOrphanNumbers = [];
+
+function loadOrphanRecords() {
+    const msg = document.getElementById("orphan-msg");
+    const table = document.getElementById("orphan-table");
+    msg.className = "msg";
+    msg.innerText = "確認中…";
+    table.style.display = "none";
+    requestSheet({ action: "orphanRecords" }).then(res => {
+        if (!res || res.result !== "success") {
+            msg.className = "msg err";
+            msg.innerText = "取得に失敗しました";
+            return;
+        }
+        const orphans = res.orphans || [];
+        lastOrphanNumbers = orphans.map(o => o.number);
+        if (orphans.length === 0) {
+            msg.className = "msg ok";
+            msg.innerText = "存在しない生徒の記録は見つかりませんでした";
+            return;
+        }
+        msg.innerText = "";
+        document.getElementById("orphan-tbody").innerHTML = orphans.map(o => `
+            <tr>
+                <td>${escapeHtml(o.number)}</td>
+                <td>${o.sessions}</td>
+                <td>${o.wordProgress}</td>
+                <td>${o.weakWords}</td>
+                <td>${o.progress}</td>
+                <td><button class="btn danger small" onclick="deleteOrphanConfirm('${escapeAttr(o.number)}')">削除</button></td>
+            </tr>`).join("");
+        table.style.display = "";
+    }).catch(() => {
+        msg.className = "msg err";
+        msg.innerText = "通信エラーが発生しました";
+    });
+}
+
+function deleteOrphanConfirm(number) {
+    if (!confirm(`生徒番号 ${number}（既に存在しない生徒）の記録を削除します。元に戻せません。よろしいですか？`)) return;
+    requestSheet({ action: "deleteOrphanRecords", numbers: [number] }).then(res => {
+        if (res && res.result === "success") {
+            loadOrphanRecords();
+        } else {
+            alert("削除に失敗しました");
+        }
+    }).catch(() => alert("通信エラーが発生しました"));
+}
+
+function deleteAllOrphans() {
+    if (lastOrphanNumbers.length === 0) {
+        alert("まず「確認する」を押して、対象があるか確認してください");
+        return;
+    }
+    if (!confirm(`存在しない生徒の記録（${lastOrphanNumbers.length}件の生徒番号分）をまとめて削除します。元に戻せません。よろしいですか？`)) return;
+    requestSheet({ action: "deleteOrphanRecords", numbers: lastOrphanNumbers }).then(res => {
+        if (res && res.result === "success") {
+            loadOrphanRecords();
+        } else {
+            alert("削除に失敗しました");
+        }
+    }).catch(() => alert("通信エラーが発生しました"));
+}
+
+/* ============ 成績確認 ============ */
+function buildUnitFilterOptions() {
+    const sel = document.getElementById("sess-filter-unit");
+    const units = Array.from(new Set(allSessions.map(s => s.unit).filter(Boolean))).sort();
+    sel.innerHTML = '<option value="">すべて</option>' + units.map(u => `<option>${escapeHtml(u)}</option>`).join("");
+}
+
+function renderSessions() {
+    const q = (document.getElementById("sess-search").value || "").trim().toLowerCase();
+    const grade = document.getElementById("sess-filter-grade").value;
+    const unit = document.getElementById("sess-filter-unit").value;
+    const mode = document.getElementById("sess-filter-mode").value;
+    const school = document.getElementById("sess-filter-school").value;
+    let list = allSessions.filter(s => {
+        if (grade && s.grade !== grade) return false;
+        if (school && schoolOf(s.studentNumber) !== school) return false;
+        if (unit && s.unit !== unit) return false;
+        if (mode && s.mode !== mode) return false;
+        if (!q) return true;
+        return String(s.studentNumber).toLowerCase().includes(q) || (s.name || "").toLowerCase().includes(q);
+    });
+    list = list.slice().sort((a, b) => parseDate(b.studiedAt) - parseDate(a.studiedAt));
+    document.getElementById("sess-count").innerText = list.length + " 件 / 全 " + allSessions.length + " 件";
+    document.getElementById("sess-tbody").innerHTML = list.map(s => `
+        <tr>
+            <td>${formatDateTime(s.studiedAt)}</td>
+            <td>${escapeHtml(s.studentNumber)}</td>
+            <td>${escapeHtml(s.name)}</td>
+            <td>${escapeHtml(s.grade)}</td>
+            <td>${escapeHtml(schoolOf(s.studentNumber))}</td>
+            <td>${escapeHtml(s.unit)}</td>
+            <td>${s.mode === "test" ? "テスト" : s.mode === "typing" ? "タイピング" : "練習"}</td>
+            <td>${escapeHtml(s.correctCount != null ? String(s.correctCount) : "-")} / ${escapeHtml(String(s.questionCount))}</td>
+            <td>${escapeHtml(String(s.score))}</td>
+            <td>${escapeHtml(String(s.scoreRaw != null ? s.scoreRaw : "-"))}</td>
+            <td>${escapeHtml(String(s.gainedPoints))}</td>
+        </tr>`).join("") || `<tr><td colspan="11" style="color:#999;">該当する記録がありません</td></tr>`;
+}
+
+/* ============ 苦手単語分析 ============ */
+function buildWeakwordStudentOptions() {
+    const sel = document.getElementById("ww-student-select");
+    const list = allStudents.slice().sort((a, b) => String(a.number).localeCompare(String(b.number), "ja", { numeric: true }));
+    sel.innerHTML = list.map(s => `<option value="${escapeAttr(s.number)}">${escapeHtml(s.number)} - ${escapeHtml(s.name)}</option>`).join("");
+}
+
+function setWeakwordMode(mode) {
+    weakwordMode = mode;
+    document.getElementById("ww-toggle-student").classList.toggle("active", mode === "student");
+    document.getElementById("ww-toggle-rank").classList.toggle("active", mode === "rank");
+    document.getElementById("ww-student-panel").style.display = mode === "student" ? "block" : "none";
+    document.getElementById("ww-rank-panel").style.display = mode === "rank" ? "block" : "none";
+    renderWeakWords();
+}
+
+function renderWeakWords() {
+    if (weakwordMode === "student") {
+        const number = document.getElementById("ww-student-select").value;
+        let list = allWeakWords.filter(w => String(w.studentNumber) === String(number) && Number(w.heat) > 0);
+        list = list.slice().sort((a, b) => Number(b.heat) - Number(a.heat));
+        document.getElementById("ww-student-count").innerText = list.length + " 語";
+        document.getElementById("ww-student-tbody").innerHTML = list.map(w => `
+            <tr><td>${escapeHtml(w.english)}</td><td>${escapeHtml(String(w.heat))}</td><td>${formatDateTime(w.updatedAt)}</td></tr>
+        `).join("") || `<tr><td colspan="3" style="color:#999;">苦手単語の記録がありません</td></tr>`;
+    } else {
+        const agg = {};
+        allWeakWords.forEach(w => {
+            if (!(Number(w.heat) > 0)) return;
+            const key = w.english;
+            if (!agg[key]) agg[key] = { english: w.english, sumHeat: 0, students: new Set() };
+            agg[key].sumHeat += Number(w.heat) || 0;
+            agg[key].students.add(String(w.studentNumber));
+        });
+        const rank = Object.values(agg).sort((a, b) => b.sumHeat - a.sumHeat).slice(0, 30);
+        document.getElementById("ww-rank-tbody").innerHTML = rank.map((r, i) => `
+            <tr><td>${i + 1}</td><td>${escapeHtml(r.english)}</td><td>${r.students.size}</td><td>${r.sumHeat}</td></tr>
+        `).join("") || `<tr><td colspan="4" style="color:#999;">データがありません</td></tr>`;
+    }
+}
+
+/* ============ 進捗分析：生徒別詳細 ============ */
+function buildDetailStudentOptions() {
+    const grade = document.getElementById("pa-detail-grade").value;
+    const sel = document.getElementById("pa-detail-student");
+    if (!grade) {
+        sel.innerHTML = `<option value="">先に学年を選んでください</option>`;
+        renderStudentDetail();
+        return;
+    }
+    const list = allStudents.filter(s => s.grade === grade)
+        .slice().sort((a, b) => String(a.number).localeCompare(String(b.number), "ja", { numeric: true }));
+    sel.innerHTML = list.length
+        ? list.map(s => `<option value="${escapeAttr(s.number)}">${escapeHtml(s.number)} - ${escapeHtml(s.name)}</option>`).join("")
+        : `<option value="">該当する生徒がいません</option>`;
+    renderStudentDetail();
+}
+
+function renderStudentDetail() {
+    const number = document.getElementById("pa-detail-student").value;
+    const tbody = document.getElementById("pa-detail-tbody");
+    const summary = document.getElementById("pa-detail-summary");
+    const s = number ? allStudents.find(st => String(st.number) === String(number)) : null;
+
+    if (!s) {
+        tbody.innerHTML = "";
+        summary.innerText = "学年と生徒を選択してください";
+        return;
+    }
+    if (!hasCourseData()) {
+        tbody.innerHTML = `<tr><td colspan="3" style="color:#999;">単語データ(data_*.js)が読み込めないため表示できません</td></tr>`;
+        summary.innerText = "";
+        return;
+    }
+
+    const grade = s.grade || "";
+    const goldSet = new Set(
+        (wordProgressByStudent[String(s.number)] || [])
+            .filter(w => Number(w.heat) === 0)
+            .map(w => w.wordId)
+    );
+
+    const rows = [];
+    let totalGold = 0, totalWords = 0;
+    const cdS = cdOf(tbOf(s));
+    for (const unit in cdS) {
+        if (!cdS[unit][grade]) continue;
+        const wordIds = cdS[unit][grade].map(w => w.id);
+        const gold = wordIds.filter(id => goldSet.has(id)).length;
+        totalGold += gold;
+        totalWords += wordIds.length;
+        rows.push({ unit, gold, total: wordIds.length, rate: wordIds.length ? gold / wordIds.length : 0 });
+    }
+
+    summary.innerText = s.name + "さん（" + grade + "） 全体: " + totalGold + " / " + totalWords
+        + (totalWords ? "（" + Math.round(totalGold / totalWords * 100) + "%）" : "");
+    tbody.innerHTML = rows.map(r => `
+        <tr>
+            <td>${escapeHtml(r.unit)}</td>
+            <td>${Math.round(r.rate * 100)}%</td>
+            <td>${r.gold} / ${r.total}</td>
+        </tr>`).join("") || `<tr><td colspan="3" style="color:#999;">単元データがありません</td></tr>`;
+}
+
+/* ============ 進捗分析：単元別・全体 ============ */
+function renderUnitMastery() {
+    const gradeFilter = document.getElementById("pa-grade").value;
+    const tbody = document.getElementById("pa-unit-tbody");
+    if (!hasCourseData()) {
+        tbody.innerHTML = `<tr><td colspan="4" style="color:#999;">単語データ(data_*.js)が読み込めないため単元別分析はできません</td></tr>`;
+        return;
+    }
+    const rows = [];
+    for (const tb in TEXTBOOKS) {
+      const cd = cdOf(tb);
+      for (const unit in cd) {
+        for (const g in cd[unit]) {
+            if (gradeFilter && g !== gradeFilter) continue;
+            const wordIds = cd[unit][g].map(w => w.id);
+            const wordSet = new Set(wordIds);
+            const studentsOfGrade = allStudents.filter(s => s.grade === g && tbOf(s) === tb);
+            if (studentsOfGrade.length === 0) continue;
+            let goldTotal = 0;
+            studentsOfGrade.forEach(s => {
+                (wordProgressByStudent[String(s.number)] || []).forEach(w => {
+                    if (wordSet.has(w.wordId) && Number(w.heat) === 0) goldTotal++;
+                });
+            });
+            const possible = wordIds.length * studentsOfGrade.length;
+            rows.push({ unit, grade: tbLabel(tb) + " / " + g, rate: possible ? goldTotal / possible : 0, goldTotal, possible });
+        }
+      }
+    }
+    rows.sort((a, b) => a.rate - b.rate);
+    tbody.innerHTML = rows.map(r => `
+        <tr>
+            <td>${escapeHtml(r.grade)}</td>
+            <td>${escapeHtml(r.unit)}</td>
+            <td>${Math.round(r.rate * 100)}%</td>
+            <td>${r.goldTotal} / ${r.possible}</td>
+        </tr>`).join("") || `<tr><td colspan="4" style="color:#999;">データがありません</td></tr>`;
+}
+
+function renderStalledStudents() {
+    const days = Number(document.getElementById("pa-days").value) || 7;
+    const lastPlay = {};
+    allSessions.forEach(s => {
+        const key = String(s.studentNumber);
+        const t = parseDate(s.studiedAt).getTime();
+        if (!lastPlay[key] || t > lastPlay[key]) lastPlay[key] = t;
+    });
+    const now = Date.now();
+    const rows = allStudents.map(s => {
+        const t = lastPlay[String(s.number)];
+        const idleDays = t ? Math.floor((now - t) / 86400000) : null;
+        return { s, idleDays };
+    }).filter(r => r.idleDays === null || r.idleDays >= days)
+      .sort((a, b) => (b.idleDays == null ? 999999 : b.idleDays) - (a.idleDays == null ? 999999 : a.idleDays));
+
+    document.getElementById("pa-stalled-tbody").innerHTML = rows.map(r => `
+        <tr>
+            <td>${escapeHtml(r.s.number)}</td>
+            <td>${escapeHtml(r.s.name)}</td>
+            <td>${escapeHtml(r.s.grade || "")}</td>
+            <td>${r.idleDays == null ? "一度もプレイなし" : r.idleDays + "日"}</td>
+        </tr>`).join("") || `<tr><td colspan="4" style="color:#999;">該当する生徒はいません</td></tr>`;
+}
+
+/* ============ 期間集計 ============ */
+function setDefaultAggDates() {
+    const to = new Date();
+    const from = new Date(Date.now() - 6 * 24 * 3600 * 1000);
+    document.getElementById("agg-from").value = toDateInputValue(from);
+    document.getElementById("agg-to").value = toDateInputValue(to);
+}
+
+function toDateInputValue(d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function renderAggregate() {
+    const fromStr = document.getElementById("agg-from").value;
+    const toStr = document.getElementById("agg-to").value;
+    const grade = document.getElementById("agg-filter-grade").value;
+    const school = document.getElementById("agg-filter-school").value;
+    const from = fromStr ? new Date(fromStr + "T00:00:00") : null;
+    const to = toStr ? new Date(toStr + "T23:59:59") : null;
+
+    let list = allSessions.filter(s => {
+        const d = parseDate(s.studiedAt);
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        if (grade && s.grade !== grade) return false;
+        if (school && schoolOf(s.studentNumber) !== school) return false;
+        return true;
+    });
+
+    const totalSessions = list.length;
+    const totalScore = list.reduce((sum, s) => sum + (Number(s.score) || 0), 0);
+    const totalPoints = list.reduce((sum, s) => sum + (Number(s.gainedPoints) || 0), 0);
+    const avgScore = totalSessions ? Math.round(totalScore / totalSessions) : 0;
+
+    document.getElementById("agg-stats").innerHTML = `
+        <div class="stat-box"><div class="v">${totalSessions}</div><div class="l">総プレイ回数</div></div>
+        <div class="stat-box"><div class="v">${avgScore}</div><div class="l">平均スコア</div></div>
+        <div class="stat-box"><div class="v">${totalScore}</div><div class="l">合計スコア</div></div>
+        <div class="stat-box"><div class="v">${totalPoints}</div><div class="l">合計獲得pt</div></div>
+    `;
+
+    const byStudent = {};
+    list.forEach(s => {
+        const key = String(s.studentNumber);
+        if (!byStudent[key]) byStudent[key] = { number: s.studentNumber, name: s.name, grade: s.grade, count: 0, scoreSum: 0, scoreRawSum: 0, pointSum: 0 };
+        byStudent[key].count += 1;
+        byStudent[key].scoreSum += Number(s.score) || 0;
+        byStudent[key].scoreRawSum += Number(s.scoreRaw) || 0;
+        byStudent[key].pointSum += Number(s.gainedPoints) || 0;
+    });
+    const rows = Object.values(byStudent).sort((a, b) => b.count - a.count);
+    document.getElementById("agg-tbody").innerHTML = rows.map(r => `
+        <tr>
+            <td>${escapeHtml(r.number)}</td>
+            <td>${escapeHtml(r.name)}</td>
+            <td>${escapeHtml(r.grade)}</td>
+            <td>${r.count}</td>
+            <td>${Math.round(r.scoreSum / r.count)}</td>
+            <td>${Math.round(r.scoreRawSum / r.count)}</td>
+            <td>${r.pointSum}</td>
+        </tr>`).join("") || `<tr><td colspan="7" style="color:#999;">該当する記録がありません</td></tr>`;
+}
+
+/* ============ ピックアップ単元 ============ */
+/* data.js が読み込めていれば courseData から単元を選択式で出す。
+   読み込めなかった場合は Sessions に記録のある Unit 名から候補を作る。 */
+function hasCourseData() {
+    return typeof TEXTBOOKS !== "undefined" && TEXTBOOKS && Object.keys(TEXTBOOKS).length > 0;
+}
+/* ---- 教材（三省堂 / 東京書籍） ---- */
+const TEXTBOOK_LIST = [{ id: "sanseido", label: "三省堂" }, { id: "tokyo", label: "東京書籍" }, { id: "mitsumura", label: "光村図書" }];
+function tbOf(s) { return (s && s.textbook) || "sanseido"; }
+function tbLabel(id) { const t = TEXTBOOK_LIST.find(x => x.id === id); return t ? t.label : id; }
+function tbIdFromText(v) { // CSV用：「東京書籍」でも「tokyo」でも受け付ける。空欄・不明は三省堂
+    v = String(v || "").trim();
+    const t = TEXTBOOK_LIST.find(x => x.id === v.toLowerCase() || x.label === v);
+    return t ? t.id : "sanseido";
+}
+function cdOf(tb) { return (typeof TEXTBOOKS !== "undefined" && TEXTBOOKS[tb] && TEXTBOOKS[tb].courseData) || {}; }
+function textbookOptionsHtml(sel) {
+    return TEXTBOOK_LIST.map(t => `<option value="${t.id}"${t.id === sel ? " selected" : ""}>${t.label}</option>`).join("");
+}
+
+function courseGradeList() {
+    if (!hasCourseData()) return GRADE_OPTIONS.slice();
+    const set = new Set();
+    const cd = cdOf(pickupTextbook());
+    for (const u in cd) for (const g in cd[u]) set.add(g);
+    const list = Array.from(set);
+    return list.length ? list : GRADE_OPTIONS.slice();
+}
+
+function unitsOfCourseGrade(grade) {
+    if (hasCourseData()) {
+        const tbId = pickupTextbook();
+        const cd = cdOf(tbId);
+        const co = TEXTBOOKS[tbId] && TEXTBOOKS[tbId].courseOrder;
+        const list = (co && co[grade]) ? co[grade] : Object.keys(cd);
+        return list.filter(u => cd[u] && cd[u][grade]);
+    }
+    // フォールバック: 実際にプレイ記録のある Unit 名
+    return Array.from(new Set(allSessions
+        .filter(s => !grade || s.grade === grade)
+        .map(s => s.unit).filter(Boolean))).sort();
+}
+
+function pickupTextbook() {
+    const el = document.getElementById("pk-textbook");
+    return (el && el.value) || "sanseido";
+}
+function onPickupTextbookChange() {
+    fillSelect("pk-course-grade", courseGradeList(), null);
+    buildPickupUnitOptions();
+    renderPickups();
+}
+
+function buildPickupUnitOptions() {
+    const cg = document.getElementById("pk-course-grade").value;
+    const units = unitsOfCourseGrade(cg);
+    const sel = document.getElementById("pk-unit");
+    if (units.length) {
+        sel.innerHTML = units.map(u => `<option value="${escapeAttr(u)}">${escapeHtml(u)}</option>`).join("");
+    } else {
+        sel.innerHTML = `<option value="">（単元候補が取得できませんでした）</option>`;
+    }
+}
+
+function pickupAppliesTo(p, school, grade) {
+    // 空欄は「すべて」を意味する
+    if (p.school && p.school !== school) return false;
+    if (p.grade && p.grade !== grade) return false;
+    return true;
+}
+
+function renderPickups() {
+    const school = document.getElementById("pk-school").value;
+    const grade = document.getElementById("pk-grade").value;
+    const note = document.getElementById("pk-target-note");
+    const tb = pickupTextbook();
+    const targets = allStudents.filter(s => tbOf(s) === tb &&
+        (!school || (s.school || "") === school) && (!grade || (s.grade || "") === grade));
+    note.innerText = "対象: " + tbLabel(tb) + " / " + (school || "すべての校舎") + " / " + (grade || "すべての学年")
+        + "（該当生徒 " + targets.length + " 名）";
+
+    const list = allPickups.filter(p => (p.textbook || "sanseido") === tb && pickupAppliesTo(p, school, grade));
+    document.getElementById("pk-count").innerText = list.length + " 件表示中 / 全 " + allPickups.length + " 件";
+    document.getElementById("pk-tbody").innerHTML = list.map(p => `
+        <tr>
+            <td>${escapeHtml(p.school || "すべて")}</td>
+            <td>${escapeHtml(p.grade || "すべて")}</td>
+            <td>${escapeHtml(p.courseGrade)}</td>
+            <td>${escapeHtml(p.unit)}</td>
+            <td>${p.updatedAt ? formatDateTime(p.updatedAt) : ""}</td>
+            <td><button class="btn danger small" onclick="deletePickupConfirm('${escapeAttr(p.school)}','${escapeAttr(p.grade)}','${escapeAttr(p.courseGrade)}','${escapeAttr(p.unit)}')">削除</button></td>
+        </tr>`).join("") || `<tr><td colspan="6" style="color:#999;">まだ設定されていません</td></tr>`;
+}
+
+function addPickupSubmit() {
+    const school = document.getElementById("pk-school").value;
+    const grade = document.getElementById("pk-grade").value;
+    const courseGrade = document.getElementById("pk-course-grade").value;
+    const unit = document.getElementById("pk-unit").value;
+    const msg = document.getElementById("pk-msg");
+    msg.className = "msg";
+    if (!unit) {
+        msg.className = "msg err";
+        msg.innerText = "Unit を選択してください";
+        return;
+    }
+    msg.innerText = "登録中…";
+    requestSheet({ action: "addPickup", textbook: pickupTextbook(), school, grade, courseGrade, unit, updatedAt: new Date().toISOString() }).then(res => {
+        if (res && res.result === "success") {
+            msg.className = "msg ok";
+            msg.innerText = "追加しました";
+            reloadPickups();
+        } else {
+            msg.className = "msg err";
+            msg.innerText = (res && res.message === "duplicate")
+                ? "同じ組み合わせが既に登録されています"
+                : "追加に失敗しました";
+        }
+    }).catch(() => {
+        msg.className = "msg err";
+        msg.innerText = "通信エラーが発生しました";
+    });
+}
+
+function deletePickupConfirm(school, grade, courseGrade, unit) {
+    if (!confirm(`【${tbLabel(pickupTextbook())}】${school || "すべての校舎"} / ${grade || "すべての学年"} の「${unit}」を削除します。よろしいですか？`)) return;
+    requestSheet({ action: "deletePickup", textbook: pickupTextbook(), school, grade, courseGrade, unit }).then(res => {
+        if (res && res.result === "success") reloadPickups();
+        else alert("削除に失敗しました");
+    }).catch(() => alert("通信エラーが発生しました"));
+}
+
+function reloadPickups() {
+    requestSheetRetry({ action: "pickups" }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 }).then(r => {
+        if (r && r.result === "success") { allPickups = r.pickups || []; renderPickups(); }
+    }).catch(() => { /* 次の更新時に再取得 */ });
+}
+
+/* ============ ユーティリティ ============ */
+function parseDate(v) {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? new Date(0) : d;
+}
+function formatDateTime(v) {
+    const d = parseDate(v);
+    return d.getTime() === 0 ? String(v || "") : d.toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/`/g, "&#96;"); }
+
+window.onload = function () {
+    buildMasterOptions();
+    initialLoad();
+};
+</script>
+</body>
+</html>

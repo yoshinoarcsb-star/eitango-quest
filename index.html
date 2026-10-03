@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英単語クエストver.04.03</title>
+    <title>英単語クエストver.05.01</title>
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -56,6 +56,16 @@
         .btn-sub { background: rgba(255,255,255,0.08); font-weight: normal; font-size: 14px; padding: 10px; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .stats-box { background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; }
+        .rk-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+        .rk-tab { padding: 8px 4px; border-radius: 8px; border: 1px solid #444; background: rgba(255,255,255,0.06); color: #ccc; font-size: 13px; cursor: pointer; text-align: center; }
+        .rk-tab.active { background: var(--primary-color); border-color: var(--primary-color); color: #fff; font-weight: bold; }
+        .rk-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.06); margin-bottom: 6px; }
+        .rk-row.me { background: rgba(245,166,35,0.22); outline: 1px solid var(--secondary-color); }
+        .rk-rank { width: 34px; text-align: center; font-weight: bold; font-size: 16px; flex-shrink: 0; }
+        .rk-main { flex: 1; min-width: 0; }
+        .rk-name { font-weight: bold; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rk-sub { font-size: 11px; color: #aaa; margin-top: 1px; }
+        .rk-score { font-weight: bold; font-size: 15px; color: var(--secondary-color); text-align: right; flex-shrink: 0; }
         .badge-tag {
             display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px;
             background: rgba(255,255,255,0.15); margin-left: 6px; vertical-align: middle;
@@ -154,7 +164,7 @@
     <div id="save-warn">⚠ 進捗を保存できません。このまま遊べますが記録は残りません。埋め込み表示やプライベートモードではなく、HTMLファイルを Safari / Chrome で直接開いてください。</div>
 
     <div id="screen-login" class="screen active">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.04.03</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.05.01</small></h1>
         <div class="stats-box" style="text-align:center;">
             <label style="display:block; margin-bottom:6px;">生徒番号</label>
             <input type="text" id="loginNumber" inputmode="numeric" placeholder="001" style="width:100%; padding:10px; border-radius:8px; border:1px solid #444; background:#0f1730; color:#fff; font-size:16px; text-align:center; margin-bottom:12px;">
@@ -167,7 +177,7 @@
     </div>
 
     <div id="screen-home" class="screen">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.04.03</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.05.01</small></h1>
         <div class="stats-box" style="font-size:12px; color:#aaa; text-align:center; padding:10px;">
             <div>👤 ログイン中: <b id="stat-studentname" style="color:#fff;"></b>（<span id="stat-studentnumber"></span>番）</div>
             <div style="margin-top:2px;"><span id="stat-studentschool"></span> ・ <span id="stat-studentgrade"></span></div>
@@ -199,6 +209,7 @@
         <button class="btn" style="background-color: var(--secondary-color); color:#1a1a2e;" onclick="openGachaScreen()">ガチャを引く (50pt)</button>
         <button class="btn btn-sub" onclick="changeScreen('screen-collection')">🏅 コレクション（バッジ）</button>
         <button class="btn btn-sub" onclick="changeScreen('screen-records')">📊 自分の記録</button>
+        <button class="btn btn-sub" onclick="openRankingScreen()">🏆 ランキング</button>
         <div id="cls-card">
             <div style="font-weight:bold;margin-bottom:6px;">🎓 授業参加モード</div>
             <div id="cls-chk">確認中…</div>
@@ -207,6 +218,7 @@
                 <input id="cls-code" inputmode="numeric" maxlength="6" placeholder="授業コード"><br>
                 <button class="btn" onclick="clsJoin()">参加する</button><div id="cls-join-msg" style="font-size:14px"></div></div>
         </div>
+        <button class="btn btn-sub" onclick="openSettingsScreen()">⚙ 設定</button>
     </div>
 
         <div id="screen-live" class="screen">
@@ -232,6 +244,37 @@
         <div style="font-size:12px; color:#aaa; margin-bottom:10px; text-align:center;">学校で使っている教科書を選んでください。<br>記録はテキストごとに残ります。</div>
         <div id="textbook-list"></div>
         <div id="textbook-msg" style="text-align:center; font-size:13px; min-height:18px; margin:8px 0;"></div>
+        <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">戻る</button>
+    </div>
+
+    <div id="screen-ranking" class="screen">
+        <h2>🏆 ランキング</h2>
+        <div id="rk-tabs" class="rk-tabs"></div>
+        <div id="rk-desc" style="font-size:12px; color:#aaa; text-align:center; margin-bottom:8px;"></div>
+        <div id="rk-scope" style="display:none; margin-bottom:8px;"></div>
+        <div id="rk-notice" style="display:none; margin-bottom:10px; padding:8px; border-radius:6px; background:rgba(255,255,255,0.1); font-size:12px; color:#ddd; text-align:center;"></div>
+        <div id="rk-list"></div>
+        <div id="rk-msg" style="text-align:center; font-size:13px; min-height:18px; margin:8px 0;"></div>
+        <button class="btn btn-sub" id="rk-refresh" onclick="loadRanking(true)">🔄 最新の順位を取得</button>
+        <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">戻る</button>
+    </div>
+
+    <div id="screen-settings" class="screen">
+        <h2>⚙ 設定</h2>
+        <div class="stats-box">
+            <div style="font-weight:bold; margin-bottom:8px;">ランキング表示ニックネーム</div>
+            <input type="text" id="set-nickname" maxlength="8" placeholder="ニックネーム" style="width:100%; padding:10px; border-radius:8px; border:1px solid #444; background:#0f1730; color:#fff; font-size:16px; text-align:center;">
+            <div style="font-size:12px; color:#aaa; margin-top:6px;">1〜8文字（ひらがな・カタカナ・漢字・英数字）。<br><b style="color:var(--secondary-color);">本名は入れないでね。</b>ランキングには校舎・学年・ニックネームが表示されます。</div>
+        </div>
+        <div class="stats-box">
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:15px;">
+                <input type="checkbox" id="set-rank-on" style="width:20px; height:20px;">
+                <span>ランキングに参加する</span>
+            </label>
+            <div style="font-size:12px; color:#aaa; margin-top:6px;">OFFにすると、あなたの名前と記録はランキングに表示されません。</div>
+        </div>
+        <div id="set-msg" style="text-align:center; font-size:13px; min-height:18px; margin:8px 0;"></div>
+        <button class="btn" id="set-save-btn" onclick="saveRankingSettings()">保存する</button>
         <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">戻る</button>
     </div>
 
@@ -351,7 +394,7 @@
 </div>
 
 <script>
-// ===== 英単語クエスト ver.04.03 =====
+// ===== 英単語クエスト ver.05.01 =====
 // 単語データは教材ごとのファイル（data_sanseido.js / data_tokyo.js。build_data.py で生成）。
 // ログイン後、その生徒の教材ファイルだけを読み込んで courseData / courseOrder に入れる。
 var courseData = {};
@@ -568,6 +611,8 @@ function proceedLogin(student, token) {
     currentStudent = student;
     sessionToken = token;
     SAVE_KEY = "eq_user_log_" + student.number;
+    rankData = null; // 前のアカウントのランキング表示を持ち越さない
+    pendingInit();
     loadLog(); // 端末内キャッシュをひとまず読み込む（通信できない時の保険）
 
     const loginBtn = document.getElementById("loginBtn");
@@ -612,6 +657,7 @@ function proceedLogin(student, token) {
         buildGradeTopList();
         buildPickupList();
         changeScreen("screen-home");
+        flushPendingSessions();
     });
 }
 
@@ -761,7 +807,7 @@ function changeScreen(id) {
     document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
     document.getElementById(id).classList.add("active");
     if (id !== "screen-quiz") stopAudio();
-    if (id === "screen-home") { buildPickupList(); updateSyncWarning(); classCheck(); } // ゴールド語数などの進捗を反映し直す
+    if (id === "screen-home") { buildPickupList(); updateSyncWarning(); classCheck(); flushPendingSessions(); } // ゴールド語数などの進捗を反映し直す
     if (id === "screen-collection") buildCollectionList();
     if (id === "screen-records") buildRecordsScreen();
 }
@@ -782,6 +828,172 @@ function updateAccountInfo() {
     document.getElementById("stat-studentschool").innerText = currentStudent.school || "校舎未設定";
     document.getElementById("stat-studentgrade").innerText = currentStudent.grade || "学年未設定";
     document.getElementById("stat-textbook").innerText = textbookLabel(currentStudent.textbook);
+}
+
+/* ---- 学習記録の再送（通信失敗で記録が消えないよう、端末に溜めて次の機会に送る） ---- */
+let pendingQueue = [];
+function pendingKey() { return "eq_pending_sessions_" + (currentStudent ? currentStudent.number : ""); }
+function pendingInit() {
+    try { pendingQueue = JSON.parse(localStorage.getItem(pendingKey()) || "[]") || []; } catch (e) { pendingQueue = []; }
+}
+function pendingPersist() {
+    pendingQueue = pendingQueue.slice(-50);
+    try { localStorage.setItem(pendingKey(), JSON.stringify(pendingQueue)); } catch (e) { /* 保存できなくてもメモリ上では再送する */ }
+}
+let pendingFlushing = false;
+function sendSessionReliable(payload) {
+    pendingQueue.push(payload);
+    pendingPersist();
+    flushPendingSessions();
+}
+function flushPendingSessions() {
+    if (pendingFlushing || !currentStudent || !sessionToken || pendingQueue.length === 0) return;
+    pendingFlushing = true;
+    const next = () => {
+        if (pendingQueue.length === 0) { pendingFlushing = false; return; }
+        const item = pendingQueue[0];
+        requestSheet(Object.assign({ action: "saveSession", token: sessionToken }, item), 10000).then(res => {
+            if (res && res.result === "success") { pendingQueue.shift(); pendingPersist(); next(); return; }
+            throw new Error((res && res.message) || "failed");
+        }).catch(err => {
+            // 5回失敗した記録は諦めて捨てる（壊れたデータで後続の送信が止まるのを防ぐ）。トークン切れは次回ログイン時に再送する
+            if (!(err && err.message === "invalid_token")) {
+                item.tries = (item.tries || 0) + 1;
+                if (item.tries >= 5) pendingQueue.shift();
+                pendingPersist();
+            }
+            pendingFlushing = false;
+        });
+    };
+    next();
+}
+
+/* ---- ランキング ---- */
+const RANK_TABS = [
+    { id: "volume",    label: "学習量",              desc: "直近7日間の正解数の合計（練習・テスト・授業）", unit: v => v + "問" },
+    { id: "scoreItem", label: "スコア（アイテム有）", desc: "直近7日間のテストモード最高スコア",             unit: v => Number(v).toLocaleString() + "点" },
+    { id: "scoreRaw",  label: "スコア（アイテム無）", desc: "直近7日間のテストモード最高スコア（アイテム効果なし）", unit: v => Number(v).toLocaleString() + "点" },
+    { id: "school",    label: "校舎対抗",            desc: "直近7日間の「1人あたり正解数」（直近7日にログインした生徒で計算）", unit: v => v + "問/人" }
+];
+let rankData = null, rankTab = "volume", rankScope = "grade", rankLoading = false, rankFetchedAt = 0;
+
+function openRankingScreen() {
+    changeScreen("screen-ranking");
+    if (!rankData || Date.now() - rankFetchedAt > 60000) loadRanking(false); else renderRanking();
+}
+
+function loadRanking(manual) {
+    if (rankLoading || !sessionToken) return;
+    rankLoading = true;
+    const msg = document.getElementById("rk-msg"), btn = document.getElementById("rk-refresh");
+    msg.style.color = "#aaa"; msg.innerText = "読み込み中…"; btn.disabled = true;
+    requestSheetRetry({ action: "ranking", token: sessionToken }, { timeoutMs: 15000, retries: 1, backoffMs: 2000 }).then(res => {
+        if (!res || res.result !== "success") throw new Error("bad_response");
+        rankData = res; rankFetchedAt = Date.now();
+        msg.innerText = "";
+        renderRanking();
+    }).catch(() => {
+        msg.style.color = "var(--danger-color)";
+        msg.innerText = "⚠ ランキングを取得できませんでした。電波の良い場所でもう一度お試しください";
+    }).then(() => { rankLoading = false; btn.disabled = false; });
+}
+
+function rankRowHtml(rank, name, sub, scoreText, isMe) {
+    const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+    return `<div class="rk-row${isMe ? " me" : ""}"><div class="rk-rank">${medal}</div>` +
+        `<div class="rk-main"><div class="rk-name">${escapeHtmlLocal(name)}${isMe ? " （あなた）" : ""}</div><div class="rk-sub">${escapeHtmlLocal(sub)}</div></div>` +
+        `<div class="rk-score">${escapeHtmlLocal(scoreText)}</div></div>`;
+}
+
+function renderRanking() {
+    if (!rankData) return;
+    const tab = RANK_TABS.find(t => t.id === rankTab) || RANK_TABS[0];
+    document.getElementById("rk-tabs").innerHTML = RANK_TABS.map(t =>
+        `<div class="rk-tab${t.id === rankTab ? " active" : ""}" onclick="selectRankTab('${t.id}')">${t.label}</div>`).join("");
+    document.getElementById("rk-desc").innerText = tab.desc;
+
+    const notice = document.getElementById("rk-notice");
+    if (rankData.me && rankData.me.enabled === false) {
+        notice.style.display = "block";
+        notice.innerText = "あなたは現在ランキングに参加していません（ホーム →「設定」でONにできます）";
+    } else notice.style.display = "none";
+
+    const list = document.getElementById("rk-list");
+    const scopeEl = document.getElementById("rk-scope");
+
+    if (tab.id === "school") {
+        scopeEl.style.display = "none";
+        const rows = rankData.schools || [];
+        list.innerHTML = rows.length ? rows.map(r =>
+            rankRowHtml(r.rank, r.school, `対象 ${r.n}人`, tab.unit(r.score), r.isMine)).join("")
+            : '<p style="text-align:center; color:#999;">まだ記録がありません</p>';
+        return;
+    }
+
+    const board = rankData.boards[tab.id];
+    const hasGrade = !!(board && board.grade);
+    if (!hasGrade) rankScope = "all";
+    scopeEl.style.display = hasGrade ? "flex" : "none";
+    scopeEl.style.gap = "6px";
+    scopeEl.innerHTML = hasGrade ? [["grade", "同じ学年（" + escapeHtmlLocal(rankData.me.grade) + "）"], ["all", "全体"]].map(([id, label]) =>
+        `<div class="rk-tab${rankScope === id ? " active" : ""}" style="flex:1;" onclick="selectRankScope('${id}')">${label}</div>`).join("") : "";
+
+    const cur = board && (rankScope === "grade" && board.grade ? board.grade : board.all);
+    if (!cur || cur.top.length === 0) {
+        list.innerHTML = '<p style="text-align:center; color:#999;">まだ記録がありません</p>';
+        return;
+    }
+    let html = cur.top.map(r => rankRowHtml(r.rank, r.nickname, `${r.school || "校舎未設定"} ・ ${r.grade || "学年未設定"}`, tab.unit(r.score), r.isMe)).join("");
+    if (cur.me && !cur.top.some(r => r.isMe)) {
+        html += '<div style="text-align:center; color:#777; margin:4px 0;">⋮</div>' +
+            rankRowHtml(cur.me.rank, cur.me.nickname, `${cur.me.school || "校舎未設定"} ・ ${cur.me.grade || "学年未設定"}`, tab.unit(cur.me.score), true);
+    } else if (!cur.me && rankData.me && rankData.me.enabled !== false) {
+        html += '<p style="text-align:center; color:#999; font-size:13px;">あなたはまだこの部門に記録がありません</p>';
+    }
+    list.innerHTML = html;
+}
+
+function selectRankTab(id) { rankTab = id; renderRanking(); }
+function selectRankScope(id) { rankScope = id; renderRanking(); }
+
+/* ---- 設定（ニックネーム・ランキング参加） ---- */
+function openSettingsScreen() {
+    if (!currentStudent) return;
+    document.getElementById("set-nickname").value = currentStudent.nickname || "";
+    document.getElementById("set-rank-on").checked = currentStudent.rankingEnabled !== false;
+    document.getElementById("set-msg").innerText = "";
+    changeScreen("screen-settings");
+}
+
+function saveRankingSettings() {
+    if (!currentStudent || !sessionToken) return;
+    const msg = document.getElementById("set-msg"), btn = document.getElementById("set-save-btn");
+    const nickname = document.getElementById("set-nickname").value.trim();
+    const enabled = document.getElementById("set-rank-on").checked;
+    if (!nickname) { msg.style.color = "var(--danger-color)"; msg.innerText = "ニックネームを入力してください"; return; }
+    const params = { action: "setRankingSettings", token: sessionToken, rankingEnabled: enabled };
+    if (nickname !== (currentStudent.nickname || "")) params.nickname = nickname; // 変えていなければ送らない
+    btn.disabled = true; msg.style.color = "#aaa"; msg.innerText = "保存中…";
+    requestSheetRetry(params, { timeoutMs: 10000, retries: 1, backoffMs: 2000 }).then(res => {
+        if (res && res.result === "success") {
+            currentStudent.nickname = res.nickname;
+            currentStudent.rankingEnabled = res.rankingEnabled;
+            document.getElementById("set-nickname").value = res.nickname || "";
+            rankData = null; // 次にランキングを開く時に取り直す
+            msg.style.color = "#4caf50"; msg.innerText = "✅ 保存しました";
+            return;
+        }
+        const m = res && res.message;
+        msg.style.color = "var(--danger-color)";
+        msg.innerText = m === "invalid_nickname" ? "ニックネームは1〜8文字で、ひらがな・カタカナ・漢字・英数字だけ使えます"
+            : m === "ng_word" ? "使えない言葉が含まれています。別のニックネームにしてください"
+            : m === "real_name" ? "本名や生徒番号は使えません。別のニックネームにしてください"
+            : m === "invalid_token" ? "ログインの有効期限が切れました。もう一度ログインしてください"
+            : "保存できませんでした。もう一度お試しください";
+    }).catch(() => {
+        msg.style.color = "var(--danger-color)";
+        msg.innerText = "⚠ 通信できませんでした。電波の良い場所でもう一度お試しください";
+    }).then(() => { btn.disabled = false; });
 }
 
 /* ---- 使用テキストの選択（生徒自身が変更できる） ---- */
@@ -1367,9 +1579,7 @@ function endQuest() {
     if (currentStudent && sessionToken) {
         pushStateToSheet();
 
-        sendToSheet({
-            action: "saveSession",
-            token: sessionToken,
+        sendSessionReliable({
             studiedAt: nowJstISOString(),
             mode: currentMode,
             grade: selectedGrade,
@@ -1675,7 +1885,7 @@ function clsFinish() {
         if (n) { saveLog(); pushStateToSheet(); note = "苦手度に反映しました"; }
     }
     clsEl("cls-note").textContent = note;
-    sendToSheet({ action: "saveSession", token: sessionToken, studiedAt: nowJstISOString(), mode: "live", grade: "授業",
+    sendSessionReliable({ studiedAt: nowJstISOString(), mode: "live", grade: "授業",
         unit: cls.room.title || "授業", questionCount: tot, correctCount: c, score: 0, scoreRaw: 0, gainedPoints: 0 });
 }
 function clsLeave() {
