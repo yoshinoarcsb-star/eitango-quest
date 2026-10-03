@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英単語クエストver.04.02</title>
+    <title>英単語クエストver.04.03</title>
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -154,7 +154,7 @@
     <div id="save-warn">⚠ 進捗を保存できません。このまま遊べますが記録は残りません。埋め込み表示やプライベートモードではなく、HTMLファイルを Safari / Chrome で直接開いてください。</div>
 
     <div id="screen-login" class="screen active">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.04.02</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.04.03</small></h1>
         <div class="stats-box" style="text-align:center;">
             <label style="display:block; margin-bottom:6px;">生徒番号</label>
             <input type="text" id="loginNumber" inputmode="numeric" placeholder="001" style="width:100%; padding:10px; border-radius:8px; border:1px solid #444; background:#0f1730; color:#fff; font-size:16px; text-align:center; margin-bottom:12px;">
@@ -167,10 +167,14 @@
     </div>
 
     <div id="screen-home" class="screen">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.04.02</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.04.03</small></h1>
         <div class="stats-box" style="font-size:12px; color:#aaa; text-align:center; padding:10px;">
             <div>👤 ログイン中: <b id="stat-studentname" style="color:#fff;"></b>（<span id="stat-studentnumber"></span>番）</div>
             <div style="margin-top:2px;"><span id="stat-studentschool"></span> ・ <span id="stat-studentgrade"></span></div>
+            <div style="margin-top:8px; padding:8px; border-radius:8px; background:rgba(255,255,255,0.08);">
+                📚 使用テキスト: <b id="stat-textbook" style="color:var(--secondary-color); font-size:15px;"></b>
+                <button class="btn btn-sub" style="margin-top:6px; padding:6px; font-size:12px;" onclick="openTextbookScreen()">テキストを変更する</button>
+            </div>
             <div style="margin-top:8px; padding-top:8px; border-top:1px solid #333;">
                 🔄 最終同期: <span id="stat-lastsync">未同期</span>
             </div>
@@ -221,6 +225,14 @@
         </div>
         <div id="cls-msg" style="text-align:center;margin:8px"></div>
         <button class="btn" style="background:#555;" onclick="clsLeave()">授業から出る</button>
+    </div>
+
+    <div id="screen-textbook" class="screen">
+        <h2>使用テキストを選ぶ</h2>
+        <div style="font-size:12px; color:#aaa; margin-bottom:10px; text-align:center;">学校で使っている教科書を選んでください。<br>記録はテキストごとに残ります。</div>
+        <div id="textbook-list"></div>
+        <div id="textbook-msg" style="text-align:center; font-size:13px; min-height:18px; margin:8px 0;"></div>
+        <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">戻る</button>
     </div>
 
     <div id="screen-gradeTop" class="screen">
@@ -339,12 +351,14 @@
 </div>
 
 <script>
-// ===== 英単語クエスト ver.04.02 =====
+// ===== 英単語クエスト ver.04.03 =====
 // 単語データは教材ごとのファイル（data_sanseido.js / data_tokyo.js。build_data.py で生成）。
 // ログイン後、その生徒の教材ファイルだけを読み込んで courseData / courseOrder に入れる。
 var courseData = {};
 var courseOrder = {};
-const TEXTBOOK_IDS = ["sanseido", "tokyo"];
+const TEXTBOOK_IDS = ["sanseido", "tokyo", "mitsumura"];
+const TEXTBOOK_LABELS = { sanseido: "三省堂", tokyo: "東京書籍", mitsumura: "光村図書" };
+function textbookLabel(id) { return TEXTBOOK_LABELS[id] || TEXTBOOK_LABELS.sanseido; }
 
 function loadTextbookData(tb) {
     if (!TEXTBOOK_IDS.includes(tb)) tb = "sanseido";
@@ -767,6 +781,60 @@ function updateAccountInfo() {
     document.getElementById("stat-studentnumber").innerText = currentStudent.number || "";
     document.getElementById("stat-studentschool").innerText = currentStudent.school || "校舎未設定";
     document.getElementById("stat-studentgrade").innerText = currentStudent.grade || "学年未設定";
+    document.getElementById("stat-textbook").innerText = textbookLabel(currentStudent.textbook);
+}
+
+/* ---- 使用テキストの選択（生徒自身が変更できる） ---- */
+let textbookSwitching = false;
+
+function openTextbookScreen() {
+    if (!currentStudent) return;
+    document.getElementById("textbook-msg").innerText = "";
+    buildTextbookList();
+    changeScreen("screen-textbook");
+}
+
+function buildTextbookList() {
+    const list = document.getElementById("textbook-list");
+    list.innerHTML = "";
+    const cur = currentStudent.textbook || "sanseido";
+    TEXTBOOK_IDS.forEach(id => {
+        const card = document.createElement("div");
+        card.className = "unit-card";
+        const isCur = id === cur;
+        card.innerHTML = `<div><div>${textbookLabel(id)}${isCur ? '<span class="badge-tag gold">使用中</span>' : ""}</div></div><div>${isCur ? "✔" : "▶"}</div>`;
+        card.onclick = () => selectTextbook(id);
+        list.appendChild(card);
+    });
+}
+
+function selectTextbook(id) {
+    if (textbookSwitching || !currentStudent || !sessionToken) return;
+    const cur = currentStudent.textbook || "sanseido";
+    const msg = document.getElementById("textbook-msg");
+    if (id === cur) { changeScreen("screen-home"); return; }
+    if (!confirm("使用テキストを「" + textbookLabel(id) + "」に変更します。よろしいですか？")) return;
+    textbookSwitching = true;
+    msg.style.color = "#aaa";
+    msg.innerText = "変更中…";
+    // 先に新しい単語データを読み込めるか確認 → サーバーに保存 → 画面に反映の順で進める（途中で失敗しても元の状態を保つ）
+    const prev = { courseData: courseData, courseOrder: courseOrder };
+    loadTextbookData(id).then(ok => {
+        if (!ok) throw new Error("data_load_failed");
+        return requestSheetRetry({ action: "setTextbook", token: sessionToken, textbook: id }, { timeoutMs: 10000, retries: 1, backoffMs: 2000 });
+    }).then(res => {
+        if (!res || res.result !== "success") throw new Error("save_failed");
+        currentStudent.textbook = res.textbook || id;
+        updateAccountInfo();
+        updateHomeStats();
+        buildGradeTopList();
+        buildPickupList();
+        changeScreen("screen-home");
+    }).catch(() => {
+        courseData = prev.courseData; courseOrder = prev.courseOrder; // 失敗したら元のテキストのデータに戻す
+        msg.style.color = "var(--danger-color)";
+        msg.innerText = "⚠ 変更できませんでした。電波の良い場所でもう一度お試しください";
+    }).then(() => { textbookSwitching = false; });
 }
 
 /* ---- 接続状況の可視化 ---- */
