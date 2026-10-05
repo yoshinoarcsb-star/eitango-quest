@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>講師用 | arc.app.hub</title>
+<style>
+  :root {
+    --bg: #f1f4f9;
+    --surface: #ffffff;
+    --ink: #17233b;
+    --muted: #5d6b85;
+    --line: #d9e0ec;
+    --focus: #2d4ea2;
+    --primary: #2d4ea2;
+    --primary-ink: #ffffff;
+    --danger: #c23b30;
+    --ok: #1b7a50;
+    --c0: #2d4ea2; --c1: #1b8a86; --c2: #d98a1c; --c3: #d4574b; --c4: #7254c4; --c5: #4f8a2f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1626;
+      --surface: #182138;
+      --ink: #e8edf8;
+      --muted: #9aa8c4;
+      --line: #2a3654;
+      --focus: #8fa8ff;
+      --primary: #8fa8ff;
+      --primary-ink: #0f1626;
+      --danger: #f08a7e;
+      --ok: #6fd1a0;
+      --c0: #6f8fe8; --c1: #4cc0bb; --c2: #f0b04c; --c3: #f08a7e; --c4: #a58cf0; --c5: #8cc76b;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+    line-height: 1.6;
+  }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--line); }
+  .topbar .wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 14px; padding-bottom: 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+  .brand-mark { width: 22px; height: 26px; border-radius: 11px 11px 3px 3px; background: var(--c0); }
+  h1 { margin: 0; font-size: 1.15rem; }
+  .who { color: var(--muted); font-size: .85rem; }
+
+  .btn {
+    font: inherit; font-size: .9rem; color: var(--ink);
+    padding: 7px 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); font-weight: 700; }
+  .btn.danger { color: var(--danger); }
+  .btn.small { padding: 4px 10px; font-size: .82rem; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ログイン */
+  .login { max-width: 400px; margin: 72px auto; padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+  .login h2 { margin: 0 0 4px; font-size: 1.25rem; }
+  .login p { margin: 0 0 18px; color: var(--muted); font-size: .9rem; }
+
+  label { display: block; font-weight: 700; font-size: .88rem; margin: 14px 0 4px; }
+  .hint { font-weight: 400; color: var(--muted); font-size: .8rem; }
+  input[type=text], input[type=url], input[type=email], input[type=password] {
+    width: 100%; padding: 9px 12px;
+    font: inherit; color: inherit;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .err { color: var(--danger); font-size: .88rem; margin: 10px 0 0; min-height: 1.4em; }
+
+  /* ツールバー */
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 22px 0 6px; }
+  .bar .spacer { margin-left: auto; }
+  .note { color: var(--muted); font-size: .85rem; margin: 0 0 14px; }
+
+  /* 一覧 */
+  .list { list-style: none; margin: 0; padding: 0 0 60px; display: grid; gap: 8px; }
+  .row {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    gap: 12px; align-items: center;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .row.hidden-app { opacity: .65; border-style: dashed; }
+  .row.dragging { opacity: .4; }
+  .row.over { border-color: var(--primary); }
+  .grip { cursor: grab; color: var(--muted); font-size: 1.2rem; user-select: none; padding: 0 4px; touch-action: none; }
+  .arch { width: 38px; height: 46px; border-radius: 19px 19px 5px 5px; display: grid; place-items: center; background: var(--tone); color: #fff; font-weight: 700; overflow: hidden; }
+  .arch img { width: 100%; height: 100%; object-fit: cover; }
+  .info { min-width: 0; }
+  .info .n { font-weight: 700; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tag-hidden { font-size: .72rem; font-weight: 700; padding: 0 8px; border-radius: 999px; border: 1px solid var(--muted); color: var(--muted); }
+  .info .u { font-size: .82rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .info .c { font-size: .8rem; font-weight: 700; color: var(--tone); }
+  .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .empty { padding: 40px 16px; text-align: center; color: var(--muted); background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; }
+
+  .consoles { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .cbtn { font-size: .8rem; font-weight: 700; padding: 2px 10px; border-radius: 6px; text-decoration: none; border: 1px solid var(--primary); color: var(--primary); }
+  a.cbtn:hover { background: var(--primary); color: var(--primary-ink); }
+  .cbtn.off { border-style: dashed; border-color: var(--line); color: var(--muted); font-weight: 400; }
+
+  details.memo { margin: 18px 0 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  details.memo > summary { cursor: pointer; padding: 12px 16px; font-weight: 700; }
+  .memo-body { padding: 0 16px 16px; }
+  textarea { width: 100%; min-height: 110px; padding: 9px 12px; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  .memo-foot { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .memo-foot .note { margin: 0; }
+
+  /* ダイアログ */
+  dialog { width: min(520px, calc(100vw - 32px)); padding: 24px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+  dialog::backdrop { background: rgba(10, 16, 30, .55); }
+  dialog h2 { margin: 0 0 4px; font-size: 1.15rem; }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-weight: 700; }
+  .check input { width: 18px; height: 18px; }
+  .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+  /* トースト */
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 10px 18px; background: var(--ink); color: var(--bg); border-radius: 10px; font-size: .9rem; z-index: 10; }
+  .toast.bad { background: var(--danger); color: #fff; }
+
+  @media (max-width: 640px) {
+    .row { grid-template-columns: auto 1fr; }
+    .row .grip { display: none; }
+    .acts { grid-column: 1 / -1; justify-content: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ログイン画面 -->
+<section id="loginView" hidden>
+  <form class="login" id="loginForm">
+    <h2>講師ログイン</h2>
+    <p>登録済みの講師アカウントでログインします。</p>
+    <label for="email">メールアドレス</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="password">パスワード</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <label class="check" style="margin-top:14px;font-weight:400"><input id="remember" type="checkbox" checked> この端末でログイン状態を保つ</label>
+    <p class="hint" style="margin:4px 0 0">共有パソコンでは、チェックを外してください。</p>
+    <p class="err" id="loginErr" role="alert"></p>
+    <button class="btn primary" id="loginBtn" type="submit" style="width:100%;margin-top:6px">ログイン</button>
+  </form>
+</section>
+
+<!-- 管理画面 -->
+<section id="adminView" hidden>
+  <div class="topbar">
+    <div class="wrap">
+      <div class="brand"><div class="brand-mark" aria-hidden="true"></div><h1>arc.app.hub 講師用</h1></div>
+      <span class="who" id="who"></span>
+      <a class="btn small" href="index.html" target="_blank" rel="noopener">生徒画面を開く</a>
+      <button class="btn small" id="logoutBtn" type="button">ログアウト</button>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <details class="memo" id="memoBox">
+      <summary>自分用メモ(講師だけに表示)</summary>
+      <div class="memo-body">
+        <label for="mAccount">Supabase管理アカウント名</label>
+        <input id="mAccount" type="text" maxlength="200" autocomplete="off">
+        <label for="mMemo1">メモ1</label>
+        <textarea id="mMemo1" maxlength="5000" autocomplete="off"></textarea>
+        <label for="mMemo2">メモ2</label>
+        <textarea id="mMemo2" maxlength="5000" autocomplete="off"></textarea>
+        <p class="hint">パスワードやAPIキー(特に service_role キー)は書かないでください。</p>
+        <div class="memo-foot">
+          <button class="btn primary" id="memoSave" type="button">メモを保存</button>
+          <span class="note" id="memoStamp" role="status"></span>
+        </div>
+      </div>
+    </details>
+
+    <div class="bar">
+      <button class="btn primary" id="addBtn" type="button">アプリを追加</button>
+      <button class="btn" id="exportBtn" type="button">JSONを書き出す</button>
+      <button class="btn" id="importBtn" type="button">JSONを読み込む</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+      <span class="spacer note" id="count"></span>
+    </div>
+    <p class="note">行をドラッグするか「↑」「↓」で並べ替えると、生徒画面の表示順に反映されます。点線の行は生徒には表示されません。コンソールのURLは講師だけに見えます。</p>
+    <ul class="list" id="list"></ul>
+  </main>
+</section>
+
+<!-- 追加・編集ダイアログ -->
+<dialog id="dlg">
+  <form id="appForm" novalidate>
+    <h2 id="dlgTitle">アプリを追加</h2>
+    <label for="fName">アプリ名 <span class="hint">(必須・80字まで)</span></label>
+    <input id="fName" type="text" maxlength="80" required>
+    <label for="fUrl">URL <span class="hint">(https:// から始まるもの)</span></label>
+    <input id="fUrl" type="url" placeholder="https://" required>
+    <label for="fDesc">説明 <span class="hint">(200字まで)</span></label>
+    <input id="fDesc" type="text" maxlength="200">
+    <label for="fCat">カテゴリ</label>
+    <input id="fCat" type="text" maxlength="40" list="catList">
+    <datalist id="catList"></datalist>
+    <label for="fIcon">アイコン <span class="hint">(絵文字、または画像のURL。空欄なら頭文字)</span></label>
+    <input id="fIcon" type="text" placeholder="📘">
+    <label for="fTags">タグ <span class="hint">(カンマ区切り。検索に使われます)</span></label>
+    <input id="fTags" type="text" placeholder="算数, 計算">
+    <label for="fAdminUrl">管理コンソールのURL <span class="hint">(講師だけに表示・任意)</span></label>
+    <input id="fAdminUrl" type="url" placeholder="https://">
+    <label for="fLessonUrl">授業コンソールのURL <span class="hint">(講師だけに表示・任意)</span></label>
+    <input id="fLessonUrl" type="url" placeholder="https://">
+    <label class="check"><input id="fVisible" type="checkbox" checked> 生徒に表示する</label>
+    <p class="err" id="formErr" role="alert"></p>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="cancelBtn">キャンセル</button>
+      <button class="btn primary" type="submit" id="saveBtn">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  const TONES = ["--c0", "--c1", "--c2", "--c3", "--c4", "--c5"];
+  const $ = id => document.getElementById(id);
+
+  const cfg = window.ARC_CONFIG;
+  if (!cfg || !cfg.SUPABASE_URL || cfg.SUPABASE_URL.includes("xxxx")) {
+    $("loginView").hidden = false;
+    $("loginForm").replaceChildren(Object.assign(document.createElement("p"), {
+      textContent: "config.js に Supabase の URL と anon キーを入力してください。"
+    }));
+    return;
+  }
+  // ログイン状態の保存先: 「この端末で保つ」ならlocalStorage、外すとタブを閉じるまで(sessionStorage)
+  const REMEMBER_KEY = "arc_admin_remember";
+  const EMAIL_KEY = "arc_admin_email";
+  const remembering = () => { try { return localStorage.getItem(REMEMBER_KEY) !== "0"; } catch (e) { return true; } };
+  const pickStore = () => (remembering() ? localStorage : sessionStorage);
+  const authStorage = {
+    getItem: k => { try { return pickStore().getItem(k); } catch (e) { return null; } },
+    setItem: (k, v) => { try { pickStore().setItem(k, v); } catch (e) { /* 保存できない環境 */ } },
+    removeItem: k => { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) { /* 何もしない */ } }
+  };
+  const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+    auth: { storage: authStorage, persistSession: true, autoRefreshToken: true }
+  });
+
+  let apps = [];
+  let consoles = {}; // app_id -> { admin_url, lesson_url }
+  let userId = null;
+  let editingId = null;
+  let dragIndex = null;
+  let toastTimer = null;
+
+  /* ---------- ユーティリティ ---------- */
+  function toast(msg, bad) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.className = "toast" + (bad ? " bad" : "");
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+  }
+
+  function toneOf(text) {
+    let h = 0;
+    for (const ch of text || "") h = (h * 31 + ch.codePointAt(0)) >>> 0;
+    return "var(" + TONES[h % TONES.length] + ")";
+  }
+
+  function normalizeUrl(u) {
+    try {
+      const x = new URL(u);
+      return (x.origin + x.pathname.replace(/\/+$/, "") + x.search + x.hash).toLowerCase();
+    } catch (e) { return String(u).toLowerCase(); }
+  }
+
+  function validUrl(u) {
+    try { const x = new URL(u); return x.protocol === "https:" || x.protocol === "http:"; }
+    catch (e) { return false; }
+  }
+
+  function parseTags(s) {
+    return [...new Set(String(s).split(/[,、]/).map(t => t.trim()).filter(Boolean))].slice(0, 20);
+  }
+
+  function slim(a) {
+    return {
+      id: a.id, name: a.name, url: a.url, description: a.description, category: a.category,
+      icon: a.icon, tags: a.tags, visible: a.visible, sort_order: a.sort_order
+    };
+  }
+
+  /* ---------- 認証 ---------- */
+  async function showForSession(session) {
+    if (!session) {
+      clearMemo();
+      $("adminView").hidden = true;
+      $("loginView").hidden = false;
+      ($("email").value ? $("password") : $("email")).focus();
+      return;
+    }
+    const { data, error } = await sb.from("teachers").select("user_id").eq("user_id", session.user.id).maybeSingle();
+    if (error || !data) {
+      await sb.auth.signOut();
+      $("loginErr").textContent = "このアカウントには講師権限がありません。";
+      $("adminView").hidden = true;
+      $("loginView").hidden = false;
+      return;
+    }
+    $("who").textContent = session.user.email;
+    $("loginView").hidden = true;
+    $("adminView").hidden = false;
+    userId = session.user.id;
+    await Promise.all([loadApps(), loadMemo()]);
+  }
+
+  $("loginForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    $("loginErr").textContent = "";
+    $("loginBtn").disabled = true;
+    const keep = $("remember").checked;
+    try {
+      localStorage.setItem(REMEMBER_KEY, keep ? "1" : "0");
+      if (keep) localStorage.setItem(EMAIL_KEY, $("email").value.trim());
+      else localStorage.removeItem(EMAIL_KEY);
+    } catch (x) { /* 保存できない環境 */ }
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: $("email").value.trim(),
+      password: $("password").value
+    });
+    $("loginBtn").disabled = false;
+    if (error) {
+      $("loginErr").textContent = "ログインできませんでした。メールアドレスとパスワードを確認してください。";
+      return;
+    }
+    $("password").value = "";
+    await showForSession(data.session);
+  });
+
+  $("logoutBtn").addEventListener("click", async () => {
+    await sb.auth.signOut();
+    apps = [];
+    await showForSession(null);
+  });
+
+  /* ---------- データ読み込み・保存 ---------- */
+  async function loadApps() {
+    const [a, c] = await Promise.all([
+      sb.from("apps").select("*")
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      sb.from("app_consoles").select("*")
+    ]);
+    if (a.error) { console.error(a.error); toast("読み込めませんでした。", true); return; }
+    apps = a.data || [];
+    consoles = {};
+    if (c.error) {
+      console.error(c.error);
+      toast("コンソールURLを読み込めませんでした。add_consoles.sql を実行済みか確認してください。", true);
+    } else {
+      (c.data || []).forEach(r => { consoles[r.app_id] = r; });
+    }
+    render();
+  }
+
+  async function saveConsoles(appId, adminUrl, lessonUrl) {
+    if (!adminUrl && !lessonUrl) {
+      const { error } = await sb.from("app_consoles").delete().eq("app_id", appId);
+      return error;
+    }
+    const { error } = await sb.from("app_consoles").upsert({
+      app_id: appId, admin_url: adminUrl || null, lesson_url: lessonUrl || null
+    });
+    return error;
+  }
+
+  async function saveOrder() {
+    apps.forEach((a, i) => { a.sort_order = i; });
+    const { error } = await sb.from("apps").upsert(apps.map(slim));
+    if (error) { console.error(error); toast("並び順を保存できませんでした。", true); await loadApps(); return; }
+    toast("並び順を保存しました。");
+  }
+
+  async function toggleVisible(app) {
+    const next = !app.visible;
+    const { error } = await sb.from("apps").update({ visible: next }).eq("id", app.id);
+    if (error) { console.error(error); toast("切り替えられませんでした。", true); return; }
+    app.visible = next;
+    render();
+    toast(next ? "生徒に表示します。" : "生徒には表示しません。");
+  }
+
+  async function removeApp(app) {
+    if (!confirm("「" + app.name + "」を削除します。元に戻せません。よろしいですか?")) return;
+    const { error } = await sb.from("apps").delete().eq("id", app.id);
+    if (error) { console.error(error); toast("削除できませんでした。", true); return; }
+    apps = apps.filter(a => a.id !== app.id);
+    render();
+    toast("削除しました。");
+  }
+
+  /* ---------- 自分用メモ ---------- */
+  function clearMemo() {
+    userId = null;
+    $("mAccount").value = "";
+    $("mMemo1").value = "";
+    $("mMemo2").value = "";
+    $("memoStamp").textContent = "";
+    $("memoBox").open = false;
+  }
+
+  async function loadMemo() {
+    const { data, error } = await sb.from("teacher_memo").select("*").eq("user_id", userId).maybeSingle();
+    if (error) {
+      console.error(error);
+      $("memoStamp").textContent = "メモを読み込めませんでした。add_memo.sql を実行済みか確認してください。";
+      return;
+    }
+    $("mAccount").value = data ? data.supabase_account : "";
+    $("mMemo1").value = data ? data.memo1 : "";
+    $("mMemo2").value = data ? data.memo2 : "";
+    $("memoStamp").textContent = data ? "最終保存: " + new Date(data.updated_at).toLocaleString("ja-JP") : "";
+  }
+
+  async function saveMemo() {
+    $("memoSave").disabled = true;
+    const { data, error } = await sb.from("teacher_memo").upsert({
+      user_id: userId,
+      supabase_account: $("mAccount").value.trim(),
+      memo1: $("mMemo1").value,
+      memo2: $("mMemo2").value
+    }).select().single();
+    $("memoSave").disabled = false;
+    if (error) { console.error(error); toast("メモを保存できませんでした。", true); return; }
+    $("memoStamp").textContent = "最終保存: " + new Date(data.updated_at).toLocaleString("ja-JP");
+    toast("メモを保存しました。");
+  }
+
+  $("memoSave").addEventListener("click", saveMemo);
+
+  /* ---------- 一覧表示 ---------- */
+  function iconNode(app) {
+    const box = document.createElement("div");
+    box.className = "arch";
+    box.setAttribute("aria-hidden", "true");
+    if (/^https?:\/\//i.test(app.icon)) {
+      const img = document.createElement("img");
+      img.src = app.icon; img.alt = "";
+      img.addEventListener("error", () => { img.remove(); box.textContent = app.name.slice(0, 1); });
+      box.append(img);
+    } else {
+      box.textContent = app.icon || app.name.slice(0, 1);
+    }
+    return box;
+  }
+
+  function btn(label, cls, onClick, disabled) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn small " + (cls || "");
+    b.textContent = label;
+    b.disabled = !!disabled;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  async function move(i, d) {
+    const j = i + d;
+    if (j < 0 || j >= apps.length) return;
+    [apps[i], apps[j]] = [apps[j], apps[i]];
+    render();
+    await saveOrder();
+  }
+
+  function consoleLink(label, url) {
+    if (url) {
+      const a = document.createElement("a");
+      a.className = "cbtn";
+      a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.textContent = label + "を開く";
+      return a;
+    }
+    const s = document.createElement("span");
+    s.className = "cbtn off";
+    s.textContent = label + "(未設定)";
+    return s;
+  }
+
+  function consoleLinks(app) {
+    const c = consoles[app.id] || {};
+    const box = document.createElement("div");
+    box.className = "consoles";
+    box.append(consoleLink("管理コンソール", c.admin_url), consoleLink("授業コンソール", c.lesson_url));
+    return box;
+  }
+
+  function rowNode(app, i) {
+    const li = document.createElement("li");
+    li.className = "row" + (app.visible ? "" : " hidden-app");
+    li.style.setProperty("--tone", toneOf(app.category || app.name));
+    li.draggable = true;
+
+    li.addEventListener("dragstart", e => { dragIndex = i; li.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); });
+    li.addEventListener("dragend", () => { dragIndex = null; li.classList.remove("dragging"); document.querySelectorAll(".over").forEach(x => x.classList.remove("over")); });
+    li.addEventListener("dragover", e => { if (dragIndex === null) return; e.preventDefault(); li.classList.add("over"); });
+    li.addEventListener("dragleave", () => li.classList.remove("over"));
+    li.addEventListener("drop", async e => {
+      e.preventDefault();
+      li.classList.remove("over");
+      if (dragIndex === null || dragIndex === i) return;
+      const [item] = apps.splice(dragIndex, 1);
+      apps.splice(i, 0, item);
+      dragIndex = null;
+      render();
+      await saveOrder();
+    });
+
+    const grip = document.createElement("div");
+    grip.className = "grip"; grip.textContent = "⋮⋮"; grip.setAttribute("aria-hidden", "true");
+
+    const info = document.createElement("div");
+    info.className = "info";
+    const n = document.createElement("div");
+    n.className = "n";
+    n.append(document.createTextNode(app.name));
+    if (!app.visible) {
+      const t = document.createElement("span");
+      t.className = "tag-hidden"; t.textContent = "非表示";
+      n.append(t);
+    }
+    const u = document.createElement("div");
+    u.className = "u"; u.textContent = app.url;
+    info.append(n, u);
+    if (app.category) {
+      const c = document.createElement("div");
+      c.className = "c"; c.textContent = app.category;
+      info.append(c);
+    }
+    info.append(consoleLinks(app));
+
+    const acts = document.createElement("div");
+    acts.className = "acts";
+    acts.append(
+      btn("↑", "", () => move(i, -1), i === 0),
+      btn("↓", "", () => move(i, 1), i === apps.length - 1),
+      btn(app.visible ? "非表示にする" : "表示する", "", () => toggleVisible(app)),
+      btn("編集", "", () => openForm(app)),
+      btn("削除", "danger", () => removeApp(app))
+    );
+
+    li.append(grip, iconNode(app), info, acts);
+    return li;
+  }
+
+  function render() {
+    const list = $("list");
+    list.replaceChildren();
+    if (apps.length === 0) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "アプリがまだありません。「アプリを追加」か「JSONを読み込む」から登録してください。";
+      list.append(li);
+    } else {
+      list.append(...apps.map(rowNode));
+    }
+    const shown = apps.filter(a => a.visible).length;
+    $("count").textContent = "全 " + apps.length + " 件(生徒に表示: " + shown + " 件)";
+
+    const cats = [...new Set(apps.map(a => a.category).filter(Boolean))];
+    $("catList").replaceChildren(...cats.map(c => Object.assign(document.createElement("option"), { value: c })));
+  }
+
+  /* ---------- 追加・編集 ---------- */
+  function openForm(app) {
+    editingId = app ? app.id : null;
+    $("dlgTitle").textContent = app ? "アプリを編集" : "アプリを追加";
+    $("fName").value = app ? app.name : "";
+    $("fUrl").value = app ? app.url : "";
+    $("fDesc").value = app ? app.description : "";
+    $("fCat").value = app ? app.category : "";
+    $("fIcon").value = app ? app.icon : "";
+    $("fTags").value = app ? (app.tags || []).join(", ") : "";
+    $("fVisible").checked = app ? app.visible : true;
+    const cs = app ? (consoles[app.id] || {}) : {};
+    $("fAdminUrl").value = cs.admin_url || "";
+    $("fLessonUrl").value = cs.lesson_url || "";
+    $("formErr").textContent = "";
+    $("dlg").showModal();
+    $("fName").focus();
+  }
+
+  $("addBtn").addEventListener("click", () => openForm(null));
+  $("cancelBtn").addEventListener("click", () => $("dlg").close());
+
+  $("appForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const err = $("formErr");
+    err.textContent = "";
+
+    const name = $("fName").value.trim();
+    const url = $("fUrl").value.trim();
+    if (!name) { err.textContent = "アプリ名を入力してください。"; return; }
+    if (!validUrl(url)) { err.textContent = "URLは https:// から始まる形式で入力してください。"; return; }
+    const dup = apps.find(a => a.id !== editingId && normalizeUrl(a.url) === normalizeUrl(url));
+    if (dup) { err.textContent = "同じURLが「" + dup.name + "」として登録済みです。"; return; }
+
+    const icon = $("fIcon").value.trim();
+    if (/^[a-z][a-z0-9+.-]*:/i.test(icon) && !/^https?:\/\//i.test(icon)) {
+      err.textContent = "アイコンの画像URLは https:// から始まる形式にしてください。"; return;
+    }
+
+    const adminUrl = $("fAdminUrl").value.trim();
+    const lessonUrl = $("fLessonUrl").value.trim();
+    if (adminUrl && !validUrl(adminUrl)) { err.textContent = "管理コンソールのURLは https:// から始まる形式で入力してください。"; return; }
+    if (lessonUrl && !validUrl(lessonUrl)) { err.textContent = "授業コンソールのURLは https:// から始まる形式で入力してください。"; return; }
+
+    const payload = {
+      name, url,
+      description: $("fDesc").value.trim(),
+      category: $("fCat").value.trim(),
+      icon,
+      tags: parseTags($("fTags").value),
+      visible: $("fVisible").checked
+    };
+
+    $("saveBtn").disabled = true;
+    let error;
+    let appId = editingId;
+    if (editingId) {
+      ({ error } = await sb.from("apps").update(payload).eq("id", editingId));
+    } else {
+      payload.sort_order = apps.length ? Math.max(...apps.map(a => a.sort_order)) + 1 : 0;
+      let row;
+      ({ data: row, error } = await sb.from("apps").insert(payload).select("id").single());
+      if (row) appId = row.id;
+    }
+    if (!error) error = await saveConsoles(appId, adminUrl, lessonUrl);
+    $("saveBtn").disabled = false;
+
+    if (error) { console.error(error); err.textContent = "保存できませんでした。入力内容を確認してください。"; return; }
+    $("dlg").close();
+    await loadApps();
+    toast("保存しました。");
+  });
+
+  /* ---------- JSON 書き出し・読み込み ---------- */
+  $("exportBtn").addEventListener("click", () => {
+    const out = apps.map(a => ({
+      name: a.name, url: a.url, description: a.description, category: a.category,
+      icon: a.icon, tags: a.tags, visible: a.visible,
+      admin_url: (consoles[a.id] || {}).admin_url || "",
+      lesson_url: (consoles[a.id] || {}).lesson_url || ""
+    }));
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "arc-app-hub-" + new Date().toISOString().slice(0, 10) + ".json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast("書き出しました。");
+  });
+
+  $("importBtn").addEventListener("click", () => $("importFile").click());
+
+  $("importFile").addEventListener("change", async e => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+
+    let items;
+    try {
+      items = JSON.parse(await file.text());
+      if (!Array.isArray(items)) throw new Error("not array");
+    } catch (x) { toast("JSONの形式が正しくありません。", true); return; }
+
+    const seen = new Set(apps.map(a => normalizeUrl(a.url)));
+    const rows = [];
+    const extras = {}; // 正規化URL -> コンソールURL
+    let skipped = 0;
+    let order = apps.length ? Math.max(...apps.map(a => a.sort_order)) + 1 : 0;
+
+    for (const it of items) {
+      const name = String(it && it.name || "").trim().slice(0, 80);
+      const url = String(it && it.url || "").trim();
+      const icon = String(it && it.icon || "").trim();
+      const iconOk = !/^[a-z][a-z0-9+.-]*:/i.test(icon) || /^https?:\/\//i.test(icon);
+      if (!name || !validUrl(url) || !iconOk || seen.has(normalizeUrl(url))) { skipped++; continue; }
+      seen.add(normalizeUrl(url));
+      const au = String(it.admin_url || "").trim();
+      const lu = String(it.lesson_url || "").trim();
+      extras[normalizeUrl(url)] = { admin: validUrl(au) ? au : "", lesson: validUrl(lu) ? lu : "" };
+      rows.push({
+        name, url, icon,
+        description: String(it.description || "").trim().slice(0, 200),
+        category: String(it.category || "").trim().slice(0, 40),
+        tags: Array.isArray(it.tags) ? parseTags(it.tags.join(",")) : parseTags(it.tags || ""),
+        visible: it.visible !== false,
+        sort_order: order++
+      });
+    }
+
+    if (rows.length === 0) { toast("追加できるアプリがありませんでした(重複・不正な行は " + skipped + " 件)。", true); return; }
+    if (!confirm(rows.length + " 件を追加します(重複・不正な行は " + skipped + " 件スキップ)。よろしいですか?")) return;
+
+    const { data: inserted, error } = await sb.from("apps").insert(rows).select("id, url");
+    if (error) { console.error(error); toast("読み込めませんでした。", true); return; }
+
+    const cRows = (inserted || []).map(r => {
+      const x = extras[normalizeUrl(r.url)] || {};
+      return (x.admin || x.lesson) ? { app_id: r.id, admin_url: x.admin || null, lesson_url: x.lesson || null } : null;
+    }).filter(Boolean);
+    let cErr = null;
+    if (cRows.length) ({ error: cErr } = await sb.from("app_consoles").upsert(cRows));
+
+    await loadApps();
+    if (cErr) { console.error(cErr); toast(rows.length + " 件を追加しましたが、コンソールURLは保存できませんでした。", true); }
+    else toast(rows.length + " 件を追加しました。");
+  });
+
+  /* ---------- 起動 ---------- */
+  $("remember").checked = remembering();
+  try { const saved = localStorage.getItem(EMAIL_KEY); if (saved) $("email").value = saved; } catch (e) { /* 何もしない */ }
+  sb.auth.getSession().then(({ data }) => showForSession(data.session));
+})();
+</script>
+</body>
+</html>
