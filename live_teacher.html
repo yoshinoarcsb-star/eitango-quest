@@ -2,148 +2,227 @@
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>授業コンソール</title>
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#eef1f5;--panel:#fff;--ink:#1b2333;--sub:#5d6778;--line:#dde2ea;--brand:#2f5bea;--brand-d:#2448c4;
---live:#e5383b;--ok:#1f9d63;--okbg:#e3f5ec;--ng:#d64545;--ngbg:#fde8e8;--warn:#f2a03d;--r:14px;
---font:"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI","Meiryo",system-ui,sans-serif}
+:root{
+  --wood:#4a3019;--wood2:#8a5a33;--wood-ink:#f6e7cc;--wood-sub:#d9c3a0;
+  --board:#1c4a3c;--board-d:#17372e;--chalk:#f3f1e7;--sub:#b9d3c6;--line:#3b6657;
+  --yellow:#ffe27a;--blue:#8fd3ff;--pink:#ffb3c1;--live:#ff7a66;
+  --ink:var(--chalk);--ng:var(--pink);--ok:var(--blue);
+  --font:"Zen Maru Gothic","Hiragino Maru Gothic ProN","BIZ UDPGothic","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --serif:"Klee One","Yu Mincho",serif}
+/* 画面サイズに合わせて全体を拡大（大型ディスプレイ向け）。右上の「文字」で微調整できます */
+html{font-size:calc(clamp(18px,1.25vw,34px) * var(--zoom,1))}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.6;padding-bottom:110px}
+body{margin:0;background:var(--wood);color:var(--chalk);font-family:var(--font);font-size:1rem;line-height:1.6;padding-bottom:7.5rem}
 .hide{display:none!important}
 button{font:inherit;cursor:pointer}
-:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
 
-/* ヘッダー */
-.top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;display:flex;align-items:center;gap:20px;padding:10px 24px;flex-wrap:wrap}
-.top b{font-size:18px;letter-spacing:.02em}
-.hbtn{padding:6px 14px;background:#2d3a52;color:#fff;margin-left:auto}
-.steps{display:flex;gap:4px;font-size:14px}
-.steps span{padding:4px 14px;border-radius:99px;color:#9aa5ba}
-.steps span.on{background:#fff;color:var(--ink);font-weight:700}
-.steps span.done{color:#fff}
-.live{display:none;align-items:center;gap:8px;font-weight:700;font-size:14px}
-.live::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--live);animation:pulse 1.6s infinite}
+/* ヘッダー（木枠） */
+.top{position:sticky;top:0;z-index:5;background:var(--wood);color:var(--wood-ink);display:flex;align-items:center;gap:.8rem 2rem;padding:.8rem 1.6rem;flex-wrap:wrap}
+.brand{font-family:var(--serif);font-weight:600;font-size:1.7rem;line-height:1.2}
+.brand small{font-family:var(--font);font-weight:400;font-size:.8rem;color:var(--wood-sub);margin-left:.7rem}
+.steps{display:flex;gap:.3rem;font-size:1rem;flex:1 1 auto;justify-content:center;flex-wrap:wrap}
+.steps span{padding:.35rem 1.1rem;border-radius:.7rem;color:var(--wood-sub)}
+.steps span.on{background:var(--yellow);color:#2a2208;font-weight:900}
+.steps span.done{color:var(--wood-ink)}
+.tools{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.live{display:none;align-items:center;gap:.5rem;font-weight:900;font-size:.95rem;color:#ffb4a8}
+.live::before{content:"";width:.7rem;height:.7rem;border-radius:50%;background:var(--live);animation:pulse 1.6s infinite}
 .live.on{display:flex}
 @keyframes pulse{50%{opacity:.25}}
 @media (prefers-reduced-motion:reduce){.live::before{animation:none}}
+.hcode{font-size:.95rem;color:var(--wood-sub)}.hcode b{color:var(--wood-ink);font-size:1.3rem;letter-spacing:.12em}
+.zoom{display:flex;align-items:center;gap:.3rem;font-size:.85rem;color:var(--wood-sub)}
+.zoom button{min-width:2.4rem;min-height:2.4rem;border:2px solid #c4ab85;border-radius:.6rem;background:transparent;color:var(--wood-ink);font-weight:700}
+.zoom button.on{background:var(--wood-ink);color:var(--wood);border-color:var(--wood-ink)}
+.hbtn{min-height:2.6rem;padding:0 1.2rem}
 
-main{max-width:1100px;margin:0 auto;padding:24px 16px}
-.panel{background:var(--panel);border-radius:var(--r);padding:24px;border:1px solid var(--line)}
-h2{margin:0 0 4px;font-size:20px}h3{margin:0 0 10px;font-size:17px}
-.hint{color:var(--sub);font-size:14px;margin:0 0 16px}
-
-/* 準備 */
-.form{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px}
-.form .full{grid-column:1/-1}
-label.f{display:block;font-size:14px;font-weight:700;margin-bottom:4px}
-label.f small{font-weight:400;color:var(--sub)}
-input[type=text],input[type=number],select{width:100%;padding:10px 12px;font:inherit;border:1px solid #c5ccd8;border-radius:10px;background:#fff}
-.units{display:flex;flex-wrap:wrap;gap:8px}
-.units label{display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:99px;background:#f7f9fc;cursor:pointer;font-size:15px}
-.units label:has(input:checked){background:var(--brand);border-color:var(--brand);color:#fff}
-.units input{accent-color:#fff}
-.sum{display:flex;align-items:center;gap:16px;margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
-.sum .n{margin-right:auto;color:var(--sub)}.sum .n b{color:var(--ink);font-size:20px}
-.check{display:flex;gap:8px;align-items:center;font-size:15px}
-@media(max-width:720px){.form{grid-template-columns:1fr}}
+/* 黒板 */
+main{margin:0 1rem;background:var(--board);border:.55rem solid var(--wood2);border-radius:.8rem;padding:1.6rem 1.8rem;min-height:calc(100vh - 12rem)}
+.panel{background:rgba(0,0,0,.16);border:2px dashed var(--line);border-radius:1rem;padding:1.4rem 1.6rem}
+h2{margin:0 0 .3rem;font-family:var(--serif);font-weight:600;font-size:1.8rem}
+h3{margin:0 0 .8rem;font-family:var(--serif);font-weight:600;font-size:1.4rem}
+.hint{color:var(--sub);font-size:1rem;margin:0 0 1rem}
 
 /* ボタン */
-.btn{border:0;border-radius:12px;padding:12px 22px;font-weight:700;background:#e3e8f1;color:var(--ink)}
-.btn:hover{filter:brightness(.96)}
-.btn.main{background:var(--brand);color:#fff;font-size:20px;padding:14px 34px}
-.btn.main:hover{background:var(--brand-d)}
-.btn.ok{background:var(--ok);color:#fff}
-.btn.text{background:none;color:var(--sub);text-decoration:underline;font-weight:400}
-.btn.danger{background:var(--ng);color:#fff}
-.btn.main.ready{animation:glow 1.2s infinite;box-shadow:0 0 0 0 #2f5bea88}
-@keyframes glow{70%{box-shadow:0 0 0 14px #2f5bea00}}
-@media (prefers-reduced-motion:reduce){.btn.main.ready{animation:none;background:var(--ok)}}
+.btn{border:2px solid var(--sub);border-radius:.8rem;padding:.55rem 1.3rem;font-weight:700;background:transparent;color:var(--chalk);min-height:3rem}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.main{background:var(--yellow);border-color:var(--yellow);color:#2a2208;font-size:1.35rem;font-weight:900;padding:.7rem 2.2rem;min-height:3.6rem}
+.btn.main:hover{filter:brightness(.95);background:var(--yellow)}
+.btn.ok{background:var(--blue);border-color:var(--blue);color:#0f2b36}
+.btn.text{background:none;border-color:transparent;color:var(--wood-sub);text-decoration:underline;font-weight:400}
+.btn.danger{background:#d9505a;border-color:#d9505a;color:#fff}
+.btn.mini{min-height:2.4rem;padding:.2rem .9rem;font-size:.9rem;border-radius:.6rem}
+.btn.main.ready{animation:glow 1.2s infinite;box-shadow:0 0 0 0 #ffe27aaa}
+@keyframes glow{70%{box-shadow:0 0 0 1rem #ffe27a00}}
+@media (prefers-reduced-motion:reduce){.btn.main.ready{animation:none;background:var(--blue);border-color:var(--blue)}}
 .btn:disabled{opacity:.5;cursor:default}
 
+/* 準備 */
+.setup-head{margin-bottom:1.2rem}
+.setup-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:1.4rem;align-items:stretch}
+@media(max-width:960px){.setup-grid{grid-template-columns:1fr}}
+.card{display:flex;flex-direction:column;gap:1rem}
+.card h3{display:flex;align-items:center;gap:.7rem}
+.no{display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:50%;background:var(--yellow);color:#2a2208;font-family:var(--font);font-weight:900;font-size:1rem}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+label.f{display:block;font-size:1rem;font-weight:700;margin-bottom:.3rem}
+label.f small{font-weight:400;color:var(--sub);margin-left:.4rem}
+input[type=text],input[type=number],select{width:100%;padding:.6rem .8rem;font:inherit;font-size:1.1rem;border:2px solid var(--sub);border-radius:.7rem;background:var(--chalk);color:#17372e}
+.unit-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.unit-head label.f{margin:0;margin-right:auto}
+.selinfo{font-size:.95rem;color:var(--yellow);font-weight:700}
+.units{display:flex;flex-wrap:wrap;gap:.6rem;max-height:24rem;overflow:auto;padding:.2rem}
+.units label{position:relative;display:flex;align-items:center;padding:.5rem 1.1rem;border:2px solid var(--line);border-radius:99px;cursor:pointer;font-size:1.05rem;min-height:2.8rem}
+.units label:hover{border-color:var(--sub)}
+.units label:has(input:checked){background:var(--yellow);border-color:var(--yellow);color:#2a2208;font-weight:700}
+.units label:has(input:focus-visible){outline:3px solid var(--yellow);outline-offset:2px}
+.units input{position:absolute;opacity:0;pointer-events:none}
+.field{display:flex;flex-direction:column;gap:.4rem}
+.fieldrow{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.fieldrow input{width:5.5rem;flex:0 0 auto;text-align:center}
+.pre{min-height:2.6rem;padding:.2rem .9rem;border:2px solid var(--line);border-radius:99px;background:transparent;color:var(--chalk);font-size:.95rem}
+.pre:hover{border-color:var(--sub)}
+.pre.on{background:var(--chalk);color:#17372e;border-color:var(--chalk);font-weight:700}
+details.more{border:2px dashed var(--line);border-radius:.8rem;padding:.4rem 1rem}
+details.more summary{cursor:pointer;color:var(--sub);font-weight:700;padding:.3rem 0}
+details.more .field{margin:.6rem 0}
+.check{display:flex;gap:.6rem;align-items:center;font-size:1rem}
+.check input{width:1.3rem;height:1.3rem;accent-color:var(--yellow)}
+.sum{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem;margin-top:auto;padding-top:1.1rem;border-top:2px dashed var(--line)}
+.sum .n{margin-right:auto;color:var(--sub);font-size:1.1rem}.sum .n b{color:var(--chalk);font-family:var(--serif);font-size:2.4rem;font-weight:600;margin:0 .2rem}
+.sum .msg{color:var(--pink);font-weight:700}
+.btn.main.wide{flex:1 0 100%}
+
 /* 入室待ち */
-.hero{text-align:center;padding:40px 24px}
-.hero .lead{color:var(--sub);margin:0}
-.code{font-size:clamp(64px,15vw,168px);font-weight:800;letter-spacing:.12em;line-height:1.1;color:var(--brand);font-variant-numeric:tabular-nums;margin:8px 0 4px;padding-left:.12em}
-.count{font-size:22px;margin:12px 0}.count b{font-size:44px;font-variant-numeric:tabular-nums}
-.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:10px}
-.chip{background:#eaf0ff;color:#1c3a9a;padding:4px 14px;border-radius:99px;font-size:15px}
+.hero{text-align:center;padding:2.4rem 1.6rem}
+.hero .lead{color:var(--sub);margin:0;font-size:1.3rem}
+.code{font-family:var(--serif);font-size:clamp(4rem,16vw,15rem);font-weight:600;letter-spacing:.12em;line-height:1.1;color:var(--yellow);font-variant-numeric:tabular-nums;margin:.4rem 0;padding-left:.12em}
+.count{font-size:1.6rem;margin:.8rem 0}.count b{font-family:var(--serif);font-size:3.4rem;font-weight:600;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin-top:.8rem}
+.chip{background:#24586a;color:var(--chalk);padding:.3rem 1.1rem;border-radius:99px;font-size:1.25rem}
 
 /* 出題中 */
-.stage{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px}
-@media(max-width:860px){.stage{grid-template-columns:1fr}}
-.qbox{display:flex;flex-direction:column;gap:12px}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:1.4rem;align-items:stretch}
+@media(max-width:1000px){.stage{grid-template-columns:1fr}}
+.qbox{display:flex;flex-direction:column;gap:1rem}
 .qhead{display:flex;justify-content:space-between;align-items:baseline;color:var(--sub)}
-.qhead b{font-size:20px;color:var(--ink)}
-#sec{font-size:30px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
-.timer{height:10px;background:#e5e9f0;border-radius:99px;overflow:hidden}.timer>div{height:100%;background:var(--warn);width:100%;transition:width .2s linear}
-.ja{font-size:clamp(34px,6vw,60px);font-weight:800;line-height:1.25;margin:16px 0 4px}
-.en{font-size:clamp(30px,5vw,48px);font-weight:800;color:var(--ok);min-height:1.4em;letter-spacing:.03em}
-.meter{margin-top:auto;padding-top:14px;border-top:1px solid var(--line)}
-.meter .row{display:flex;gap:24px;font-size:15px;color:var(--sub)}.meter .row b{font-size:26px;color:var(--ink);font-variant-numeric:tabular-nums}
-.bar{height:14px;background:#e5e9f0;border-radius:99px;overflow:hidden;margin-top:8px}.bar>div{height:100%;background:var(--ok);width:0;transition:width .4s}
-.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;align-content:start}
-.tile{border:2px solid var(--line);background:#f7f9fc;border-radius:10px;padding:8px 10px;min-height:64px;font-size:14px;color:var(--sub);word-break:break-all}
-.tile b{display:block;font-size:15px;color:var(--ink)}
-.tile.ok{background:var(--okbg);border-color:var(--ok)}.tile.ok::after{content:"○";float:right;color:var(--ok);font-weight:800}
-.tile.ng{background:var(--ngbg);border-color:var(--ng)}.tile.ng::after{content:"×";float:right;color:var(--ng);font-weight:800}
-.tile i{font-style:normal;color:var(--ng);font-size:13px}
+.qhead b{font-family:var(--serif);font-weight:600;font-size:1.7rem;color:var(--yellow)}
+#sec{font-family:var(--serif);font-size:3.2rem;font-weight:600;color:var(--chalk);font-variant-numeric:tabular-nums;line-height:1}
+.timer{height:.8rem;background:var(--line);border-radius:99px;overflow:hidden}.timer>div{height:100%;background:var(--yellow);width:100%;transition:width .2s linear;border-radius:99px}
+.ja{font-family:var(--serif);font-weight:600;font-size:clamp(2.6rem,5vw,7rem);line-height:1.2;margin:1.2rem 0 .4rem;word-break:keep-all;overflow-wrap:anywhere}
+.en{font-family:var(--serif);font-weight:600;font-size:clamp(2.2rem,4.2vw,5.5rem);color:var(--blue);min-height:1.4em;letter-spacing:.03em}
+.meter{margin-top:auto;padding-top:1rem;border-top:2px dashed var(--line)}
+.meter .row{display:flex;gap:2.4rem;font-size:1.05rem;color:var(--sub);align-items:baseline}.meter .row b{font-family:var(--serif);font-weight:600;font-size:2.2rem;color:var(--chalk);font-variant-numeric:tabular-nums}
+.bar{height:.9rem;background:var(--line);border-radius:99px;overflow:hidden;margin-top:.6rem}.bar>div{height:100%;background:var(--blue);width:0;transition:width .4s;border-radius:99px}
+.board-r{display:flex;flex-direction:column}
+.legend{display:flex;gap:1.1rem;font-size:.95rem;color:var(--sub)}
+.tilehead{display:flex;align-items:baseline;justify-content:space-between;gap:.8rem;flex-wrap:wrap;margin-bottom:.8rem}.tilehead h3{margin:0}
+/* 生徒の回答：大きく、遠くから読めるように */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(11.5rem,1fr));gap:.7rem;align-content:start;overflow-y:auto;max-height:calc(100vh - 20rem)}
+.tile{position:relative;border:2px dashed #7fa395;background:transparent;border-radius:.8rem;padding:.7rem 3rem .7rem 1rem;min-height:5.6rem;font-size:1rem;color:var(--sub);word-break:break-all;display:flex;flex-direction:column;justify-content:center}
+.tile b{display:block;font-size:1.5rem;line-height:1.3;color:var(--chalk);font-weight:900}
+.tile.ok{background:#24586a;border:2px solid var(--blue);color:#cfeefc}
+.tile.ng{background:#5b3340;border:2px solid var(--pink);color:#ffd9e0}
+.tile.ok::after,.tile.ng::after{position:absolute;top:.3rem;right:.8rem;font-family:var(--serif);font-size:2.4rem;line-height:1.2;font-weight:600}
+.tile.ok::after{content:"○";color:var(--blue)}
+.tile.ng::after{content:"×";color:var(--pink)}
+.tile i{font-style:normal;color:var(--pink);font-size:1.25rem;font-weight:700}
 
 /* 結果 */
-.res{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:860px){.res{grid-template-columns:1fr}}
+.res{display:grid;grid-template-columns:1fr 1fr;gap:1.4rem}
+@media(max-width:1000px){.res{grid-template-columns:1fr}}
 .res .wide{grid-column:1/-1}
-table{width:100%;border-collapse:collapse;font-size:15px}
-th{font-size:13px;color:var(--sub);text-align:left;font-weight:400}
-td,th{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
-td.rk{width:2.5em;font-weight:800;font-variant-numeric:tabular-nums}
-tr.top3 td.rk{color:var(--brand)}
-.tag{display:inline-block;background:var(--ngbg);color:#8f2020;padding:2px 10px;border-radius:8px;margin:2px 4px 2px 0;font-size:14px}
-.tag.q{background:#eef1f5;color:var(--ink)}
-.good{color:var(--ok);font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:1.1rem}
+th{font-size:.95rem;color:var(--sub);text-align:left;font-weight:400}
+td,th{padding:.55rem .5rem;border-bottom:1px solid var(--line);vertical-align:top}
+td.rk{width:3rem;font-family:var(--serif);font-weight:600;font-size:1.3rem;font-variant-numeric:tabular-nums}
+tr.top3 td.rk,tr.top3 td{color:var(--yellow)}
+.tag{display:inline-block;background:#5b3340;color:#ffd9e0;padding:.15rem .8rem;border-radius:.6rem;margin:.2rem .4rem .2rem 0;font-size:1rem}
+.tag.q{background:#24586a;color:var(--chalk)}
+.good{color:var(--blue);font-weight:700}
 
 /* 履歴 */
-#history{position:fixed;inset:0;z-index:20;background:var(--bg);overflow:auto}
-.hwrap{max-width:1000px;margin:0 auto;padding:20px 16px 60px}
-.hbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+#history{position:fixed;inset:0;z-index:20;background:var(--board-d);overflow:auto}
+.hwrap{max-width:1500px;margin:0 auto;padding:1.4rem 1.2rem 4rem}
+.hbar{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.1rem}
 .hbar h2{margin:0}.hbar .hint{margin:0}
-.tabs{display:flex;gap:4px;margin-left:auto}
-.tabs button{border:1px solid var(--line);background:#fff;padding:8px 16px;border-radius:99px}
-.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-details{border-bottom:1px solid var(--line);padding:8px 0}
-summary{cursor:pointer;font-weight:700}summary small{font-weight:400;color:var(--sub);margin-left:8px}
-.hline{margin:6px 0 0 18px;font-size:15px}.hline .d{color:var(--sub);font-size:13px;margin-right:8px}
-.et{font-size:12px;color:var(--sub);margin-left:4px}
-/* 操作バー */
-.dock{position:fixed;left:0;right:0;bottom:0;z-index:6;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 16px #0001;padding:12px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.dock .st{margin-right:auto;font-weight:700}
-.dock .st small{display:block;font-weight:400;color:var(--sub)}
+.tabs{display:flex;gap:.3rem;margin-left:auto}
+.tabs button{border:2px solid var(--line);background:transparent;color:var(--chalk);padding:.5rem 1.2rem;border-radius:99px;min-height:2.8rem}
+.tabs button.on{background:var(--yellow);color:#2a2208;border-color:var(--yellow);font-weight:700}
+details{border-bottom:1px solid var(--line);padding:.6rem 0}
+summary{cursor:pointer;font-weight:700;font-size:1.1rem}summary small{font-weight:400;color:var(--sub);margin-left:.6rem}
+.hline{margin:.4rem 0 0 1.2rem;font-size:1rem}.hline .d{color:var(--sub);font-size:.9rem;margin-right:.6rem}
+.et{font-size:.85rem;color:var(--sub);margin-left:.3rem}
+/* 操作バー（木の台） */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--wood);color:var(--wood-ink);border-top:4px solid var(--wood2);padding:.8rem 1.6rem;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}
+.dock .st{margin-right:auto;font-weight:900;font-size:1.3rem}
+.dock .st small{display:block;font-weight:400;font-size:.95rem;color:var(--wood-sub)}
+.dock .btn{border-color:#c4ab85;color:var(--wood-ink);font-size:1.1rem}
+.dock .btn:hover{background:rgba(255,255,255,.1)}
+.dock .btn.main{background:var(--yellow);border-color:var(--yellow);color:#2a2208;font-size:1.4rem}
+.dock .btn.danger{background:#d9505a;border-color:#d9505a;color:#fff}
+.dock .btn.text{border-color:transparent;color:var(--wood-sub)}
+@media(max-width:720px){.row2{grid-template-columns:1fr}}
 </style></head><body>
 
 <header class="top">
-  <b>🎓 授業コンソール</b>
-  <span class="live" id="liveTag">LIVE</span>
-  <button class="btn hbtn" id="histBtn">📚 履歴</button>
+  <div class="brand">授業コンソール<small>英単語クエスト</small></div>
   <nav class="steps" id="steps"><span>準備</span><span>入室待ち</span><span>授業中</span><span>結果</span></nav>
+  <div class="tools">
+    <span class="live" id="liveTag">LIVE</span>
+    <span class="hcode hide" id="hCodeW">参加コード <b id="hCode"></b></span>
+    <div class="zoom" id="zoom" aria-label="文字サイズ">文字<button data-z="s" aria-label="文字を小さく">小</button><button data-z="m" aria-label="文字を標準に">中</button><button data-z="l" aria-label="文字を大きく">大</button></div>
+    <button class="btn hbtn" id="histBtn">履歴</button>
+  </div>
 </header>
 
 <main>
 <!-- ① 準備 -->
-<section id="setup" class="panel">
-  <h2>授業を準備する</h2>
-  <p class="hint">出題する単元を選んで、ルームを作成します。作成すると生徒のホームに授業が表示されます。</p>
-  <div class="form">
-    <div><label class="f" for="tb">教材</label><select id="tb"><option value="sanseido">三省堂</option><option value="tokyo">東京書籍</option><option value="mitsumura">光村図書</option></select></div>
-    <div><label class="f" for="grade">学年</label><select id="grade"></select></div>
-    <div class="full"><label class="f">単元 <small>複数選べます</small></label><div class="units" id="units"></div></div>
-    <div><label class="f" for="cnt">問題数 <small>0なら選んだ単元すべて</small></label><input id="cnt" type="number" value="10" min="0"></div>
-    <div><label class="f" for="tl">1問の制限時間（秒） <small>0なら制限なし</small></label><input id="tl" type="number" value="30" min="0"></div>
-    <div><label class="f" for="title">授業タイトル</label><input id="title" type="text" placeholder="例：中2 Unit3 小テスト"></div>
-    <div><label class="f" for="school">校舎 <small>生徒の校舎と同じ表記。空欄なら全校舎</small></label><input id="school" type="text"></div>
-    <div class="full check"><input type="checkbox" id="heat"><label for="heat">授業のあと、生徒の苦手度に結果を反映する</label></div>
+<section id="setup">
+  <div class="setup-head">
+    <h2>授業をはじめる準備</h2>
+    <p class="hint">① 出題する単元を選び、② 授業の設定を確認して「ルームを作成」を押します。作成すると生徒のホームに授業が表示されます。</p>
   </div>
-  <div class="sum">
-    <div class="n">出題数 <b id="sumN">0</b> 問</div>
-    <span id="setupMsg" style="color:var(--ng)"></span>
-    <button id="openBtn" class="btn main">ルームを作成</button>
+  <div class="setup-grid">
+    <div class="panel card">
+      <h3><span class="no">1</span>出題する単元</h3>
+      <div class="row2">
+        <div><label class="f" for="tb">教材</label><select id="tb"><option value="sanseido">三省堂</option><option value="tokyo">東京書籍</option><option value="mitsumura">光村図書</option></select></div>
+        <div><label class="f" for="grade">学年</label><select id="grade"></select></div>
+      </div>
+      <div>
+        <div class="unit-head">
+          <label class="f">単元<small>複数選べます</small></label>
+          <span class="selinfo" id="selInfo"></span>
+          <button type="button" class="btn mini" id="unitAll">すべて選ぶ</button>
+          <button type="button" class="btn mini" id="unitNone">解除</button>
+        </div>
+        <div class="units" id="units"></div>
+      </div>
+    </div>
+
+    <div class="panel card">
+      <h3><span class="no">2</span>授業の設定</h3>
+      <div class="field"><label class="f" for="title">授業タイトル</label><input id="title" type="text" placeholder="例：中2 Unit3 小テスト"></div>
+      <div class="field"><label class="f" for="cnt">問題数</label>
+        <div class="fieldrow"><input id="cnt" type="number" value="10" min="0">
+          <button type="button" class="pre" data-set="cnt" data-v="5">5</button><button type="button" class="pre" data-set="cnt" data-v="10">10</button><button type="button" class="pre" data-set="cnt" data-v="20">20</button><button type="button" class="pre" data-set="cnt" data-v="0">すべて</button></div></div>
+      <div class="field"><label class="f" for="tl">1問の制限時間（秒）</label>
+        <div class="fieldrow"><input id="tl" type="number" value="30" min="0">
+          <button type="button" class="pre" data-set="tl" data-v="15">15</button><button type="button" class="pre" data-set="tl" data-v="30">30</button><button type="button" class="pre" data-set="tl" data-v="60">60</button><button type="button" class="pre" data-set="tl" data-v="0">なし</button></div></div>
+      <details class="more"><summary>詳細設定（ふだんは変更不要）</summary>
+        <div class="field"><label class="f" for="school">校舎 <small>生徒の校舎と同じ表記。空欄なら全校舎</small></label><input id="school" type="text"></div>
+        <div class="check"><input type="checkbox" id="heat"><label for="heat">授業のあと、生徒の苦手度に結果を反映する</label></div>
+      </details>
+      <div class="sum">
+        <div class="n">出題数<b id="sumN">0</b>問</div>
+        <span id="setupMsg" class="msg"></span>
+        <button id="openBtn" class="btn main wide">ルームを作成</button>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -151,7 +230,7 @@ summary{cursor:pointer;font-weight:700}summary small{font-weight:400;color:var(-
 <section id="lobby" class="panel hero hide">
   <p class="lead">生徒はホームの「授業参加モード」でこのコードを入力します</p>
   <div class="code" id="code"></div>
-  <div class="count">👥 <b id="pCount">0</b> 人が参加中</div>
+  <div class="count"><b id="pCount">0</b> 人が参加中</div>
   <div class="chips" id="pNames"></div>
 </section>
 
@@ -167,7 +246,7 @@ summary{cursor:pointer;font-weight:700}summary small{font-weight:400;color:var(-
       <div class="bar"><div id="accBar"></div></div>
     </div>
   </div>
-  <div class="panel"><h3>生徒の回答</h3><div class="tiles" id="tiles"></div></div>
+  <div class="panel board-r"><div class="tilehead"><h3>みんなの回答</h3><div class="legend"><span>○ 正解</span><span>× 誤答</span><span>未回答は点線</span></div></div><div class="tiles" id="tiles"></div></div>
 </section>
 
 <!-- ④ 結果 -->
@@ -179,13 +258,13 @@ summary{cursor:pointer;font-weight:700}summary small{font-weight:400;color:var(-
 </main>
 
 <div id="history" class="hide"><div class="hwrap">
-  <div class="hbar"><h2>📚 間違いの履歴</h2><span class="hint">直近30日</span>
+  <div class="hbar"><h2>間違いの履歴</h2><span class="hint">直近30日</span>
     <div class="tabs" id="htabs"><button data-v="room" class="on">授業別</button><button data-v="stu">生徒別</button><button data-v="word">単語別</button></div>
-    <button class="btn" id="csvBtn">CSV</button><button class="btn main" id="histClose" style="font-size:16px;padding:8px 20px">閉じる</button></div>
+    <button class="btn" id="csvBtn">CSV</button><button class="btn main" id="histClose" style="font-size:1.1rem;padding:.4rem 1.4rem;min-height:3rem">閉じる</button></div>
   <div class="panel" id="hbody">読み込み中…</div>
 </div></div>
 
-<div class="dock hide" id="dock"><div class="st" id="stLabel"></div><div id="ctrl" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div></div>
+<div class="dock hide" id="dock"><div class="st" id="stLabel"></div><div id="ctrl" style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap"></div></div>
 
 <script src="data_sanseido.js"></script>
 <script src="data_tokyo.js"></script>
@@ -225,9 +304,23 @@ function pickedWords(){
   document.querySelectorAll("#units input:checked").forEach(i => ws = ws.concat(t.courseData[i.value][g]));
   return ws;
 }
-function sumUp(){ const n = +$("cnt").value, all = pickedWords().length; $("sumN").textContent = n > 0 ? Math.min(n, all) : all; }
+function sumUp(){ const n = +$("cnt").value, all = pickedWords().length; $("sumN").textContent = n > 0 ? Math.min(n, all) : all;
+  const u = document.querySelectorAll("#units input:checked").length;
+  $("selInfo").textContent = u ? "選択中 " + u + "単元・" + all + "語" : "";
+  document.querySelectorAll(".pre").forEach(b => b.classList.toggle("on", $(b.dataset.set).value.trim() === b.dataset.v)); }
 $("tb").onchange = fillGrades; $("grade").onchange = fillUnits; $("cnt").oninput = sumUp;
-$("units").onchange = sumUp; fillGrades();
+$("units").onchange = sumUp; $("tl").oninput = sumUp; fillGrades();
+$("unitAll").onclick = () => { document.querySelectorAll("#units input").forEach(i => i.checked = true); sumUp(); };
+$("unitNone").onclick = () => { document.querySelectorAll("#units input").forEach(i => i.checked = false); sumUp(); };
+document.querySelectorAll(".pre").forEach(b => b.onclick = () => { $(b.dataset.set).value = b.dataset.v; sumUp(); });
+sumUp();
+/* 文字サイズ（大型ディスプレイ用）：小・中・大 */
+const ZS = {s:.85, m:1, l:1.3};
+function setZoom(k){ if (!ZS[k]) k = "m"; document.documentElement.style.setProperty("--zoom", ZS[k]);
+  document.querySelectorAll("#zoom button").forEach(b => b.classList.toggle("on", b.dataset.z === k));
+  try { localStorage.setItem("eq_live_zoom", k); } catch(e){} }
+$("zoom").onclick = e => { const b = e.target.closest("button"); if (b) setZoom(b.dataset.z); };
+try { setZoom(localStorage.getItem("eq_live_zoom") || "m"); } catch(e){ setZoom("m"); }
 
 $("openBtn").onclick = async () => {
   let ws = pickedWords();
@@ -248,7 +341,7 @@ function save(){ sessionStorage.setItem("eq_live_room", JSON.stringify(R)); }
 
 /* ---- ルーム ---- */
 function enterRoom(){
-  $("setup").classList.add("hide"); $("code").textContent = R.code; $("liveTag").classList.add("on");
+  $("setup").classList.add("hide"); $("code").textContent = R.code; $("liveTag").classList.add("on"); $("hCode").textContent = R.code; $("hCodeW").classList.remove("hide");
   render(); poll(); setInterval(poll, 3000);
   api({action:"classHeartbeat", roomId:R.roomId}); setInterval(()=>api({action:"classHeartbeat", roomId:R.roomId}), 10000);
   setInterval(tick, 200);
@@ -390,7 +483,7 @@ function showHist(){
       const by = {}; w.forEach(a=>(by[a.name] = by[a.name] || []).push(a));
       const body = Object.keys(by).map(n=>`<div style="margin-top:8px"><b>${esc(n)}</b>（${by[n].length}問）`+
         by[n].sort((x,y)=>x.q_index-y.q_index).map(a=>`<div class="hline"><span class="d">Q${a.q_index+1}</span>${esc(a.correct_answer)} ← ${esc(a.input||"（空欄）")}<span class="et">${ET[a.error_type]||""}</span></div>`).join("")+"</div>").join("") || '<div class="good" style="margin-top:8px">誤答はありませんでした</div>';
-      return `<details><summary>${fdt(rm.created_at)}　${esc(rm.title||"（無題）")}<small>👥${pc}人　正答率${rs.length?Math.round((rs.length-w.length)/rs.length*100):0}%　誤答${w.length}</small></summary>${body}</details>`;
+      return `<details><summary>${fdt(rm.created_at)}　${esc(rm.title||"（無題）")}<small>${pc}人　正答率${rs.length?Math.round((rs.length-w.length)/rs.length*100):0}%　誤答${w.length}</small></summary>${body}</details>`;
     }).join("");
   } else if (hView === "stu") {
     const g = {}; wrong.forEach(a=>(g[a.student_number] = g[a.student_number] || {n:a.name, l:[]}).l.push(a));
