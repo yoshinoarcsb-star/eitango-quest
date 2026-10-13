@@ -75,6 +75,20 @@
     .toggle-group button { padding:8px 14px; border:none; border-radius:6px; background:rgba(255,255,255,0.08); color:#fff; font-size:12px; cursor:pointer; }
     .toggle-group button.active { background: var(--primary-color); }
     #loading-overlay { text-align:center; padding:40px; color:#999; }
+    .chk { display:inline-flex; align-items:center; gap:4px; margin:3px 12px 3px 0; font-size:13px; cursor:pointer; }
+    .chk input { width:16px; height:16px; }
+    .pk-field { margin-bottom:10px; }
+    .pk-cell { vertical-align:top; white-space:normal; min-width:130px; }
+    .pk-item { margin-bottom:4px; padding:4px 6px; border-radius:5px; background:rgba(46,204,113,0.18); border-left:3px solid var(--success-color); font-size:12px; }
+    .pk-item.scheduled { background:rgba(241,196,15,0.15); border-left-color:var(--secondary-color); }
+    .pk-item .m { display:block; font-size:10.5px; color:#bbb; }
+    .pk-none { color:var(--danger-color); font-size:11px; }
+    .pk-n { font-size:10.5px; color:#888; margin-top:2px; }
+    .tag { display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; }
+    .tag.active { background:rgba(46,204,113,0.25); color:#7ee2a8; }
+    .tag.scheduled { background:rgba(241,196,15,0.25); color:#f1d36b; }
+    .tag.expired { background:rgba(255,255,255,0.1); color:#999; }
+    .heat-cell { text-align:center; }
 </style>
 </head>
 <body>
@@ -84,6 +98,15 @@
     <div id="top-bar">
         <div id="sync-status">読み込み中…</div>
         <div>
+            <label style="font-size:12px; color:#aaa; margin-right:6px;">成績の取得期間
+                <select id="load-days" onchange="changeLoadDays()" style="padding:6px; border-radius:6px; background:#0f1730; color:#fff; border:1px solid #444;">
+                    <option value="7">直近7日</option>
+                    <option value="30" selected>直近30日</option>
+                    <option value="90">直近90日</option>
+                    <option value="365">直近1年</option>
+                    <option value="0">すべて（件数が多いと時間がかかります）</option>
+                </select>
+            </label>
             <button class="btn sub" onclick="resetAdminSecret()">🔑 合言葉再入力</button>
             <button class="btn sub" onclick="refreshAll()">🔄 更新</button>
         </div>
@@ -92,8 +115,8 @@
     <div id="tabs">
         <button class="active" onclick="switchTab('students')" id="tab-btn-students">生徒管理</button>
         <button onclick="switchTab('sessions')" id="tab-btn-sessions">成績確認</button>
-        <button onclick="switchTab('weakwords')" id="tab-btn-weakwords">苦手単語分析</button>
-        <button onclick="switchTab('progress')" id="tab-btn-progress">進捗分析</button>
+        <button onclick="switchTab('usage')" id="tab-btn-usage">利用状況</button>
+        <button onclick="switchTab('ranking')" id="tab-btn-ranking">ランキング</button>
         <button onclick="switchTab('aggregate')" id="tab-btn-aggregate">期間集計</button>
         <button onclick="switchTab('pickup')" id="tab-btn-pickup">ピックアップ単元</button>
     </div>
@@ -203,104 +226,105 @@
                         </select>
                     </label>
                 </div>
-                <div class="count-note" id="sess-count"></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <div class="count-note" id="sess-count"></div>
+                    <button class="btn sub small" onclick="exportSessionsCsv()">📥 絞り込み結果をCSV出力（全件）</button>
+                </div>
                 <div class="table-wrap">
                     <table>
                         <thead><tr><th>日時</th><th>番号</th><th>氏名</th><th>学年</th><th>校舎</th><th>Unit</th><th>モード</th><th>正答数/問題数</th><th>スコア</th><th>アイテムなし</th><th>獲得pt</th></tr></thead>
                         <tbody id="sess-tbody"></tbody>
                     </table>
                 </div>
+                <div id="sess-more" style="text-align:center; margin-top:10px; display:none;">
+                    <button class="btn sub" onclick="showMoreSessions()">さらに500件表示</button>
+                </div>
             </div>
         </div>
 
-        <!-- ============ 苦手単語分析 ============ -->
-        <div id="screen-weakwords" class="screen">
+        <!-- ============ 利用状況 ============ -->
+        <div id="screen-usage" class="screen">
             <div class="panel">
+                <h2 style="font-size:15px;">校舎別の利用状況</h2>
+                <div class="count-note" id="us-note">「学習した人」＝その期間に1回以上、練習・テスト・タイピングのいずれかを完了した生徒です。</div>
+                <div class="stat-grid" id="us-cards"></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>校舎</th><th>在籍</th><th>直近7日<br>学習した人</th><th>率</th><th>前週比<br>(人)</th><th>直近7日<br>学習回数</th><th>1人あたり<br>(回/在籍)</th><th>直近30日<br>学習した人</th><th>率</th><th>直近7日<br>ログイン人数</th></tr></thead>
+                        <tbody id="us-school-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="panel">
+                <h2 style="font-size:15px;">週ごとの推移（月曜〜日曜・直近8週）</h2>
                 <div class="toggle-group">
-                    <button class="active" id="ww-toggle-student" onclick="setWeakwordMode('student')">生徒別</button>
-                    <button id="ww-toggle-rank" onclick="setWeakwordMode('rank')">全体ランキング</button>
+                    <button class="active" id="us-m-people" onclick="setUsageMetric('people')">学習した人数</button>
+                    <button id="us-m-rate" onclick="setUsageMetric('rate')">利用率(%)</button>
+                    <button id="us-m-sessions" onclick="setUsageMetric('sessions')">学習回数</button>
                 </div>
-
-                <div id="ww-student-panel">
-                    <div class="filter-row">
-                        <label class="f">生徒を選択
-                            <select id="ww-student-select" onchange="renderWeakWords()"></select>
-                        </label>
-                    </div>
-                    <div class="count-note" id="ww-student-count"></div>
-                    <div class="table-wrap">
-                        <table>
-                            <thead><tr><th>単語</th><th>苦手度(heat)</th><th>更新日時</th></tr></thead>
-                            <tbody id="ww-student-tbody"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div id="ww-rank-panel" style="display:none;">
-                    <div class="count-note">全生徒の合計 heat が高い（=みんなが間違えやすい）単語 上位30件</div>
-                    <div class="table-wrap">
-                        <table>
-                            <thead><tr><th>順位</th><th>単語</th><th>該当生徒数</th><th>合計heat</th></tr></thead>
-                            <tbody id="ww-rank-tbody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ============ 進捗分析 ============ -->
-        <div id="screen-progress" class="screen">
-            <div class="panel">
-                <h2 style="font-size:15px;">生徒別 進捗詳細</h2>
-                <div class="filter-row">
-                    <label class="f">学年
-                        <select id="pa-detail-grade" onchange="buildDetailStudentOptions()"></select>
-                    </label>
-                    <label class="f">生徒
-                        <select id="pa-detail-student" onchange="renderStudentDetail()"></select>
-                    </label>
-                </div>
-                <div class="count-note" id="pa-detail-summary">学年と生徒を選択してください</div>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>Unit</th><th>定着率</th><th>ゴールド数/単語数</th></tr></thead>
-                        <tbody id="pa-detail-tbody"></tbody>
+                        <thead id="us-trend-thead"></thead>
+                        <tbody id="us-trend-tbody"></tbody>
                     </table>
                 </div>
             </div>
-
             <div class="panel">
-                <h2 style="font-size:15px;">単元別 定着率（定着率が低い順）</h2>
+                <h2 style="font-size:15px;">しばらく学習していない生徒</h2>
                 <div class="filter-row">
-                    <label class="f">学年
-                        <select id="pa-grade" onchange="renderUnitMastery()"></select>
+                    <label class="f">学習していない期間
+                        <select id="us-idle-days" onchange="renderUsageIdle()">
+                            <option value="7">7日以上</option>
+                            <option value="14" selected>14日以上</option>
+                            <option value="30">30日以上</option>
+                            <option value="56">8週間以上（記録なし含む）</option>
+                        </select>
+                    </label>
+                    <label class="f">校舎
+                        <select id="us-idle-school" onchange="renderUsageIdle()"></select>
                     </label>
                 </div>
-                <div class="count-note">「ゴールド数 ÷ (その単元の生徒数×単語数)」で計算しています。data_sanseido.js / data_tokyo.js / data_mitsumura.js が必要です。</div>
+                <div class="count-note" id="us-idle-count"></div>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>教材 / 学年</th><th>Unit</th><th>定着率</th><th>ゴールド数/対象語数</th></tr></thead>
-                        <tbody id="pa-unit-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="panel">
-                <h2 style="font-size:15px;">プレイが止まっている生徒</h2>
-                <div class="filter-row">
-                    <label class="f">何日プレイが無ければ表示するか
-                        <input type="number" id="pa-days" value="7" min="1" style="width:80px;" oninput="renderStalledStudents()">
-                    </label>
-                </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead><tr><th>番号</th><th>氏名</th><th>学年</th><th>最終プレイからの日数</th></tr></thead>
-                        <tbody id="pa-stalled-tbody"></tbody>
+                        <thead><tr><th>番号</th><th>氏名</th><th>校舎</th><th>学年</th><th>最終学習</th><th>最終ログイン</th></tr></thead>
+                        <tbody id="us-idle-tbody"></tbody>
                     </table>
                 </div>
             </div>
         </div>
 
+        <!-- ============ ランキング（管理者用） ============ -->
+        <div id="screen-ranking" class="screen">
+            <div class="panel">
+                <div class="filter-row">
+                    <label class="f">集計期間
+                        <select id="rk-days" onchange="loadRanking(true)">
+                            <option value="7" selected>直近7日（生徒画面と同じ）</option>
+                            <option value="30">直近30日</option>
+                        </select>
+                    </label>
+                    <label class="f">部門
+                        <select id="rk-board" onchange="renderRanking()">
+                            <option value="volume">学習量（正解数）</option>
+                            <option value="scoreItem">ハイスコア（アイテム込）</option>
+                            <option value="scoreRaw">ハイスコア（アイテムなし）</option>
+                            <option value="school">校舎対抗（1人あたり正解数）</option>
+                        </select>
+                    </label>
+                    <label class="f">校舎<select id="rk-school" onchange="renderRanking()"></select></label>
+                    <label class="f">学年<select id="rk-grade" onchange="renderRanking()"></select></label>
+                    <label class="chk" style="margin-top:16px;"><input type="checkbox" id="rk-showoff" onchange="renderRanking()"> ランキング非参加の生徒も表示</label>
+                </div>
+                <div class="count-note" id="rk-note"></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead id="rk-thead"></thead>
+                        <tbody id="rk-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
         <!-- ============ 期間集計 ============ -->
         <div id="screen-aggregate" class="screen">
             <div class="panel">
@@ -315,6 +339,7 @@
                     </label>
                 </div>
 
+                <div class="count-note">集計の対象は、画面上部の「成績の取得期間」で読み込んだ成績です。それより前の日付を集計したい場合は、取得期間を広げてください。</div>
                 <div class="stat-grid" id="agg-stats"></div>
 
                 <h2 style="font-size:14px;">生徒別集計</h2>
@@ -330,21 +355,21 @@
         <!-- ============ ピックアップ単元 ============ -->
         <div id="screen-pickup" class="screen">
             <div class="panel">
-                <h2>ピックアップ単元の設定</h2>
-                <div class="count-note">校舎と学年を選ぶと、その組み合わせの生徒のホーム画面に「📌 今週のピックアップ」として表示される単元を設定できます。</div>
+                <h2>📌 ピックアップ単元：現在の設定状況</h2>
                 <div class="filter-row">
                     <label class="f">教材
-                        <select id="pk-textbook" onchange="onPickupTextbookChange()" style="width:120px;"></select>
-                    </label>
-                    <label class="f">校舎
-                        <select id="pk-school" onchange="renderPickups()" style="width:150px;"></select>
-                    </label>
-                    <label class="f">学年
-                        <select id="pk-grade" onchange="renderPickups()" style="width:120px;"></select>
+                        <select id="pk-textbook" onchange="onPickupTextbookChange()" style="width:140px;"></select>
                     </label>
                 </div>
-                <div class="count-note" id="pk-target-note"></div>
+                <div class="count-note">各マスは「その校舎・その学年の生徒のホーム画面に表示される単元」です（緑＝表示中、黄＝予約中）。赤字の「設定なし」は、生徒がいるのにピックアップが無いマスです。「共通」付きは校舎または学年を空欄で登録したものです。</div>
+                <div class="table-wrap" style="max-height:none;"><table id="pk-matrix"></table></div>
+            </div>
 
+            <div class="panel">
+                <h2 style="font-size:15px;">新しく登録する</h2>
+                <div class="count-note">校舎・学年を複数選ぶと、その組み合わせすべてに同じ単元を一括登録します。（選択中の教材：<b id="pk-form-tb"></b>）</div>
+                <div class="pk-field"><b style="font-size:13px;">校舎</b><div id="pk-school-checks"></div></div>
+                <div class="pk-field"><b style="font-size:13px;">学年</b><div id="pk-grade-checks"></div></div>
                 <div class="add-form">
                     <label class="f">教材の学年
                         <select id="pk-course-grade" onchange="buildPickupUnitOptions()" style="width:120px;"></select>
@@ -352,26 +377,40 @@
                     <label class="f">Unit
                         <select id="pk-unit" style="width:220px;"></select>
                     </label>
-                    <button class="btn" onclick="addPickupSubmit()">＋ 追加</button>
+                    <label class="f">開始日<input type="date" id="pk-start" onchange="updatePickupPreview()"></label>
+                    <label class="f">終了日<input type="date" id="pk-end" onchange="updatePickupPreview()"></label>
+                    <button class="btn sub small" onclick="setPickupThisWeek()">今週（月〜日）</button>
+                    <button class="btn sub small" onclick="setPickupNextWeek()">来週（月〜日）</button>
+                    <button class="btn sub small" onclick="clearPickupPeriod()">無期限</button>
                 </div>
+                <div class="count-note" id="pk-preview" style="margin-top:10px;"></div>
+                <button class="btn" onclick="addPickupSubmit()">＋ 登録</button>
                 <div class="msg" id="pk-msg"></div>
             </div>
 
             <div class="panel">
-                <h2 style="font-size:15px;">設定済みのピックアップ</h2>
+                <h2 style="font-size:15px;">登録一覧（履歴を含む）</h2>
+                <div class="filter-row">
+                    <label class="f">状態
+                        <select id="pk-list-status" onchange="renderPickupList()">
+                            <option value="current" selected>表示中＋予約中</option>
+                            <option value="expired">終了済み（履歴）</option>
+                            <option value="all">すべて</option>
+                        </select>
+                    </label>
+                    <label class="f">校舎
+                        <select id="pk-list-school" onchange="renderPickupList()"></select>
+                    </label>
+                </div>
                 <div class="count-note" id="pk-count"></div>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>校舎</th><th>学年</th><th>教材の学年</th><th>Unit</th><th>更新日時</th><th></th></tr></thead>
+                        <thead><tr><th>状態</th><th>教材</th><th>校舎</th><th>学年</th><th>教材の学年</th><th>Unit</th><th>開始日</th><th>終了日</th><th>登録日時</th><th></th></tr></thead>
                         <tbody id="pk-tbody"></tbody>
                     </table>
                 </div>
-                <div class="count-note" style="margin-top:10px;">
-                    一覧は「選択中の校舎・学年に実際に表示されるもの」を出しています。校舎を「すべての校舎」、学年を「すべての学年」にして登録すると、全生徒に共通で表示されます。
-                </div>
             </div>
         </div>
-
     </div>
 </div>
 
@@ -412,16 +451,16 @@ SCHOOLS.forEach((name, i) => { SCHOOL_CODES[name] = String(i + 1); });
 
 let allStudents = [];
 let allSessions = [];
-let allWeakWords = [];
-let allWordProgress = [];
 let allPickups = [];
-let weakwordMode = "student";
 let currentTab = "students";
 let editingStudentNumber = null;
-let wordProgressByStudent = {}; // studentNumber -> [{wordId,heat,lastTime}]
+let studentProgressCache = {};  // 生徒番号 -> 「ゴールド数 / 総単語数」の表示文字列（「表示」を押した生徒だけ取得）
+let wordMetaBuilt = false;
 let wordMeta = {};              // wordId -> {grade, unit}
 let gradeWordTotal = {};        // "教材ID|学年" -> 教材上の総単語数
-let loaded = { sessions: false, weakwords: false, pickups: false }; // students/wordprogressは初期ロードで常時取得
+let loaded = { sessions: false, pickups: false }; // 生徒一覧のみ起動時に取得。ほかは各タブを開いたときに取得
+let usageData = null;   // 利用状況（サーバーで集計済み）
+let rankData = null;    // ランキング（生徒ごとの集計値）
 
 /* ---- Supabase Edge Functionを呼び出す共通関数（index.htmlと同じ仕組み+管理者合言葉を自動付与） ---- */
 function requestSheet(params, timeoutMs) {
@@ -479,11 +518,13 @@ function buildMasterOptions() {
     fillSelect("sess-filter-school", SCHOOLS, "すべて");
     fillSelect("agg-filter-grade", GRADE_OPTIONS, "すべて");
     fillSelect("agg-filter-school", SCHOOLS, "すべて");
-    fillSelect("pa-grade", GRADE_OPTIONS, "すべての学年");
-    fillSelect("pa-detail-grade", GRADE_OPTIONS, "学年を選択", "");
+    fillSelect("rk-school", SCHOOLS, "すべての校舎");
+    fillSelect("rk-grade", GRADE_OPTIONS, "すべての学年");
+    fillSelect("us-idle-school", SCHOOLS, "すべての校舎");
     // ピックアップ単元
-    fillSelect("pk-school", SCHOOLS, "すべての校舎（共通）");
-    fillSelect("pk-grade", GRADE_OPTIONS, "すべての学年（共通）");
+    buildPickupChecks();
+    document.getElementById("pk-list-school").innerHTML = '<option value="">すべての校舎</option><option value="__common__">全校舎共通のみ</option>' +
+        SCHOOLS.map(sc => `<option value="${escapeAttr(sc)}">${escapeHtml(sc)}</option>`).join("");
     document.getElementById("pk-textbook").innerHTML = textbookOptionsHtml("sanseido");
     fillSelect("pk-course-grade", courseGradeList(), null);
     buildPickupUnitOptions();
@@ -525,6 +566,7 @@ function suggestStudentNumber() {
 
 /* ---- data.js から「単語ID→学年/Unit」の対応表と、学年ごとの総単語数を作る ---- */
 function buildWordMeta() {
+    wordMetaBuilt = true;
     wordMeta = {};
     gradeWordTotal = {};
     if (!hasCourseData()) return;
@@ -538,15 +580,6 @@ function buildWordMeta() {
             }
         }
     }
-}
-
-/* ---- allWordProgress を生徒番号ごとに引きやすい形にまとめておく（毎回全件走査しないため） ---- */
-function indexWordProgress() {
-    wordProgressByStudent = {};
-    allWordProgress.forEach(w => {
-        const key = String(w.studentNumber);
-        (wordProgressByStudent[key] || (wordProgressByStudent[key] = [])).push(w);
-    });
 }
 
 /* ---- 生徒番号から校舎を引く（Sessionsシートには校舎が無いため生徒マスタで補う） ---- */
@@ -570,14 +603,18 @@ function switchTab(name) {
 const TAB_REQUIRES = {
     students: [],
     sessions: ["sessions"],
-    weakwords: ["weakwords"],
-    progress: ["sessions"], // wordprogressは初期ロード時に取得済み
+    usage: [],       // 専用の取得処理（サーバー側で集計）
+    ranking: [],     // 専用の取得処理
     aggregate: ["sessions"],
     pickup: ["pickups"],
 };
 
+let loadDays = 30; // 成績データの取得期間（0=すべて）。軽さ優先で初期値は直近30日
 function fetchAction(action) {
-    return requestSheetRetry({ action: action }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 }).then(res => {
+    const params = { action: action === "pickups" ? "adminPickups" : action }; // 管理画面では終了済み・予約中も含めて取得
+    if (action === "sessions" && loadDays > 0) params.days = loadDays;
+    // 件数が多い場合はサーバー側で複数回に分けて取得するため、待ち時間を長めに取る
+    return requestSheetRetry(params, { timeoutMs: 60000, retries: 1, backoffMs: 3000 }).then(res => {
         if (!res || res.result !== "success") throw new Error("bad_response");
         return res;
     });
@@ -589,7 +626,6 @@ function loadTabData(name) {
     setStatus("読み込み中…");
     Promise.all(needed.map(a => fetchAction(a).then(res => {
         if (a === "sessions") allSessions = res.sessions || [];
-        if (a === "weakwords") allWeakWords = res.words || [];
         if (a === "pickups") allPickups = res.pickups || [];
         loaded[a] = true;
     }))).then(() => {
@@ -603,33 +639,20 @@ function loadTabData(name) {
 function renderTab(name) {
     if (name === "students") renderStudents();
     else if (name === "sessions") { buildUnitFilterOptions(); renderSessions(); }
-    else if (name === "weakwords") renderWeakWords();
-    else if (name === "progress") renderProgressAnalysis();
+    else if (name === "usage") loadUsage(false);
+    else if (name === "ranking") loadRanking(false);
     else if (name === "aggregate") renderAggregate();
     else if (name === "pickup") { buildPickupUnitOptions(); renderPickups(); }
 }
 
-function renderProgressAnalysis() {
-    renderStudentDetail();
-    renderUnitMastery();
-    renderStalledStudents();
-}
-
-/* ---- 生徒・単語進捗だけは常に必要なので、最初にまとめて読み込む ---- */
+/* ---- 起動時に読むのは生徒一覧だけ（動作を軽くするため、進捗や成績は必要なときに取得） ---- */
 function initialLoad() {
     setStatus("読み込み中…");
     document.getElementById("loading-overlay").style.display = "block";
     document.getElementById("content").style.display = "none";
-    Promise.all([
-        fetchAction("students"),
-        fetchAction("wordprogress"),
-    ]).then(([sRes, wpRes]) => {
+    fetchAction("students").then(sRes => {
         allStudents = sRes.students || [];
-        allWordProgress = wpRes.words || [];
         buildSchoolIndex();
-        indexWordProgress();
-        buildWordMeta();
-        buildWeakwordStudentOptions();
         setDefaultAggDates();
         setStatus("最終更新: " + new Date().toLocaleString("ja-JP"));
         document.getElementById("loading-overlay").style.display = "none";
@@ -641,9 +664,17 @@ function initialLoad() {
     });
 }
 
+/* ---- 成績の取得期間を変更したら、成績データだけ取り直す ---- */
+function changeLoadDays() {
+    loadDays = Number(document.getElementById("load-days").value) || 0;
+    loaded.sessions = false;
+    loadTabData(currentTab);
+}
+
 /* ---- 「更新」ボタン：すべてのキャッシュを破棄して取り直す ---- */
 function refreshAll() {
-    loaded = { sessions: false, weakwords: false, pickups: false };
+    loaded = { sessions: false, pickups: false };
+    usageData = null; rankData = null; studentProgressCache = {};
     initialLoad();
 }
 
@@ -677,7 +708,7 @@ function studentRowHtml(s) {
             <td>${escapeHtml(s.school || "")}</td>
             <td>${escapeHtml(tbLabel(tbOf(s)))}</td>
             <td>${escapeHtml(s.passcode)}</td>
-            <td>${escapeHtml(studentProgressText(s))}</td>
+            <td>${studentProgressCellHtml(s)}</td>
             <td>
                 <button class="btn sub small" onclick="startEditStudent('${escapeAttr(s.number)}')">編集</button>
                 <button class="btn sub small" onclick="openReport('${escapeAttr(s.number)}')">成績書</button>
@@ -703,7 +734,7 @@ function studentEditRowHtml(s) {
             <td><select id="edit-school">${schoolOpts}</select></td>
             <td><select id="edit-textbook">${textbookOptionsHtml(tbOf(s))}</select></td>
             <td><input type="text" id="edit-pass" value="${escapeAttr(s.passcode)}" style="width:90px;"></td>
-            <td>${escapeHtml(studentProgressText(s))}</td>
+            <td>${studentProgressCellHtml(s)}</td>
             <td>
                 <button class="btn small" onclick="saveEditStudent('${escapeAttr(s.number)}')">保存</button>
                 <button class="btn sub small" onclick="cancelEditStudent()">キャンセル</button>
@@ -754,8 +785,8 @@ function saveEditStudent(number) {
             const s = allStudents.find(st => String(st.number) === String(number));
             if (s) { s.name = name; s.school = school; s.passcode = passcode; s.textbook = textbook; if (payload.nickname) s.nickname = payload.nickname; }
             editingStudentNumber = null;
+            delete studentProgressCache[String(number)];
             buildSchoolIndex();
-            buildWeakwordStudentOptions();
             renderStudents();
         } else {
             alert("更新に失敗しました");
@@ -763,27 +794,41 @@ function saveEditStudent(number) {
     }).catch(() => alert("通信エラーが発生しました"));
 }
 
-/* その生徒の「ゴールド数 / その学年の総単語数」を返す（data.js・wordprogressが無ければ"-"） */
-function studentProgressText(s) {
-    const grade = s.grade || "";
-    const tb = tbOf(s);
-    const total = gradeWordTotal[tb + "|" + grade];
-    if (!total) return "-";
-    const rows = wordProgressByStudent[String(s.number)] || [];
-    let gold = 0;
-    rows.forEach(w => {
-        const meta = wordMeta[w.wordId];
-        if (meta && meta.tb === tb && meta.grade === grade && Number(w.heat) === 0) gold++;
-    });
-    return gold + " / " + total;
+/* 生徒の「ゴールド数 / その学年の総単語数」。起動時には取得せず、「表示」ボタンを押した生徒の分だけサーバーから取得する */
+function studentProgressCellHtml(s) {
+    const c = studentProgressCache[String(s.number)];
+    if (c !== undefined) return escapeHtml(c);
+    return `<button class="btn sub small" onclick="loadStudentProgress('${escapeAttr(s.number)}')">表示</button>`;
+}
+
+function loadStudentProgress(number) {
+    const s = allStudents.find(st => String(st.number) === String(number));
+    if (!s) return;
+    if (!wordMetaBuilt) buildWordMeta();
+    requestSheetRetry({ action: "studentProgress", number: String(number) }, { timeoutMs: 30000, retries: 1, backoffMs: 2000 }).then(res => {
+        if (!res || res.result !== "success") throw new Error("bad_response");
+        const grade = s.grade || "";
+        const tb = tbOf(s);
+        const total = gradeWordTotal[tb + "|" + grade];
+        let text = "-";
+        if (total) {
+            let gold = 0;
+            (res.words || []).forEach(w => {
+                const meta = wordMeta[w.wordId];
+                if (meta && meta.tb === tb && meta.grade === grade && Number(w.heat) === 0) gold++;
+            });
+            text = gold + " / " + total;
+        }
+        studentProgressCache[String(number)] = text;
+        renderStudents();
+    }).catch(() => alert("進捗の取得に失敗しました"));
 }
 
 function resetProgressConfirm(number, name) {
     if (!confirm(`${name}（${number}番）の単語の進捗（ゴールド状況など）をすべてリセットします。元に戻せません。よろしいですか？`)) return;
     requestSheet({ action: "resetStudentProgress", number }).then(res => {
         if (res && res.result === "success") {
-            allWordProgress = allWordProgress.filter(w => String(w.studentNumber) !== String(number));
-            indexWordProgress();
+            delete studentProgressCache[String(number)];
             renderStudents();
             alert("リセットしました");
         } else {
@@ -880,12 +925,10 @@ function importStudentsCsv(fileInput) {
 }
 
 function refreshStudentsOnly() {
-    return Promise.all([fetchAction("students"), fetchAction("wordprogress")]).then(([sRes, wpRes]) => {
+    return fetchAction("students").then(sRes => {
         allStudents = sRes.students || [];
-        allWordProgress = wpRes.words || [];
+        studentProgressCache = {};
         buildSchoolIndex();
-        indexWordProgress();
-        buildWeakwordStudentOptions();
         renderStudents();
     }).catch(() => alert("最新データの取得に失敗しました。「更新」ボタンを押してください。"));
 }
@@ -907,7 +950,7 @@ function updateStudentGradeInline(selectEl, number) {
         if (res && res.result === "success") {
             const s = allStudents.find(st => String(st.number) === String(number));
             if (s) s.grade = grade;
-            buildWeakwordStudentOptions();
+            delete studentProgressCache[String(number)];
         } else {
             alert("学年の更新に失敗しました");
             renderStudents();
@@ -957,12 +1000,8 @@ function deleteStudentConfirm(number, name) {
     requestSheet({ action: "deleteStudent", number }).then(res => {
         if (res && res.result === "success") {
             allStudents = allStudents.filter(s => String(s.number) !== String(number));
-            allWordProgress = allWordProgress.filter(w => String(w.studentNumber) !== String(number));
             allSessions = allSessions.filter(s => String(s.studentNumber) !== String(number));
-            allWeakWords = allWeakWords.filter(w => String(w.studentNumber) !== String(number));
-            indexWordProgress();
             renderStudents();
-            buildWeakwordStudentOptions();
         } else {
             alert("削除に失敗しました");
         }
@@ -1041,6 +1080,18 @@ function buildUnitFilterOptions() {
     sel.innerHTML = '<option value="">すべて</option>' + units.map(u => `<option>${escapeHtml(u)}</option>`).join("");
 }
 
+let sessListForCsv = [];
+function exportSessionsCsv() {
+    const header = ["日時", "番号", "氏名", "学年", "校舎", "Unit", "モード", "正答数", "問題数", "スコア", "アイテムなし", "獲得pt"].join(",");
+    const modeLabel = m => m === "test" ? "テスト" : m === "typing" ? "タイピング" : "練習";
+    const lines = sessListForCsv.map(x => [formatDateTime(x.studiedAt), x.studentNumber, x.name, x.grade, schoolOf(x.studentNumber), x.unit,
+        modeLabel(x.mode), x.correctCount, x.questionCount, x.score, x.scoreRaw, x.gainedPoints].map(csvEscape).join(","));
+    downloadText([header].concat(lines).join("\r\n"), "sessions_" + toDateInputValue(new Date()) + ".csv", "text/csv;charset=utf-8");
+}
+let sessShowLimit = 500;
+let sessShowSig = "";
+function showMoreSessions() { sessShowLimit += 500; renderSessions(); }
+
 function renderSessions() {
     const q = (document.getElementById("sess-search").value || "").trim().toLowerCase();
     const grade = document.getElementById("sess-filter-grade").value;
@@ -1056,8 +1107,15 @@ function renderSessions() {
         return String(s.studentNumber).toLowerCase().includes(q) || (s.name || "").toLowerCase().includes(q);
     });
     list = list.slice().sort((a, b) => parseDate(b.studiedAt) - parseDate(a.studiedAt));
-    document.getElementById("sess-count").innerText = list.length + " 件 / 全 " + allSessions.length + " 件";
-    document.getElementById("sess-tbody").innerHTML = list.map(s => `
+    sessListForCsv = list;
+    // 絞り込み条件が変わったら表示件数を500件に戻す（件数が多いと画面が重くなるため分割表示）
+    const sig = [q, grade, unit, mode, school].join("|");
+    if (sig !== sessShowSig) { sessShowSig = sig; sessShowLimit = 500; }
+    const shown = list.slice(0, sessShowLimit);
+    document.getElementById("sess-more").style.display = list.length > shown.length ? "block" : "none";
+    document.getElementById("sess-count").innerText = list.length + " 件 / 全 " + allSessions.length + " 件" +
+        (list.length > shown.length ? "（新しい順に " + shown.length + " 件を表示中）" : "");
+    document.getElementById("sess-tbody").innerHTML = shown.map(s => `
         <tr>
             <td>${formatDateTime(s.studiedAt)}</td>
             <td>${escapeHtml(s.studentNumber)}</td>
@@ -1071,174 +1129,6 @@ function renderSessions() {
             <td>${escapeHtml(String(s.scoreRaw != null ? s.scoreRaw : "-"))}</td>
             <td>${escapeHtml(String(s.gainedPoints))}</td>
         </tr>`).join("") || `<tr><td colspan="11" style="color:#999;">該当する記録がありません</td></tr>`;
-}
-
-/* ============ 苦手単語分析 ============ */
-function buildWeakwordStudentOptions() {
-    const sel = document.getElementById("ww-student-select");
-    const list = allStudents.slice().sort((a, b) => String(a.number).localeCompare(String(b.number), "ja", { numeric: true }));
-    sel.innerHTML = list.map(s => `<option value="${escapeAttr(s.number)}">${escapeHtml(s.number)} - ${escapeHtml(s.name)}</option>`).join("");
-}
-
-function setWeakwordMode(mode) {
-    weakwordMode = mode;
-    document.getElementById("ww-toggle-student").classList.toggle("active", mode === "student");
-    document.getElementById("ww-toggle-rank").classList.toggle("active", mode === "rank");
-    document.getElementById("ww-student-panel").style.display = mode === "student" ? "block" : "none";
-    document.getElementById("ww-rank-panel").style.display = mode === "rank" ? "block" : "none";
-    renderWeakWords();
-}
-
-function renderWeakWords() {
-    if (weakwordMode === "student") {
-        const number = document.getElementById("ww-student-select").value;
-        let list = allWeakWords.filter(w => String(w.studentNumber) === String(number) && Number(w.heat) > 0);
-        list = list.slice().sort((a, b) => Number(b.heat) - Number(a.heat));
-        document.getElementById("ww-student-count").innerText = list.length + " 語";
-        document.getElementById("ww-student-tbody").innerHTML = list.map(w => `
-            <tr><td>${escapeHtml(w.english)}</td><td>${escapeHtml(String(w.heat))}</td><td>${formatDateTime(w.updatedAt)}</td></tr>
-        `).join("") || `<tr><td colspan="3" style="color:#999;">苦手単語の記録がありません</td></tr>`;
-    } else {
-        const agg = {};
-        allWeakWords.forEach(w => {
-            if (!(Number(w.heat) > 0)) return;
-            const key = w.english;
-            if (!agg[key]) agg[key] = { english: w.english, sumHeat: 0, students: new Set() };
-            agg[key].sumHeat += Number(w.heat) || 0;
-            agg[key].students.add(String(w.studentNumber));
-        });
-        const rank = Object.values(agg).sort((a, b) => b.sumHeat - a.sumHeat).slice(0, 30);
-        document.getElementById("ww-rank-tbody").innerHTML = rank.map((r, i) => `
-            <tr><td>${i + 1}</td><td>${escapeHtml(r.english)}</td><td>${r.students.size}</td><td>${r.sumHeat}</td></tr>
-        `).join("") || `<tr><td colspan="4" style="color:#999;">データがありません</td></tr>`;
-    }
-}
-
-/* ============ 進捗分析：生徒別詳細 ============ */
-function buildDetailStudentOptions() {
-    const grade = document.getElementById("pa-detail-grade").value;
-    const sel = document.getElementById("pa-detail-student");
-    if (!grade) {
-        sel.innerHTML = `<option value="">先に学年を選んでください</option>`;
-        renderStudentDetail();
-        return;
-    }
-    const list = allStudents.filter(s => s.grade === grade)
-        .slice().sort((a, b) => String(a.number).localeCompare(String(b.number), "ja", { numeric: true }));
-    sel.innerHTML = list.length
-        ? list.map(s => `<option value="${escapeAttr(s.number)}">${escapeHtml(s.number)} - ${escapeHtml(s.name)}</option>`).join("")
-        : `<option value="">該当する生徒がいません</option>`;
-    renderStudentDetail();
-}
-
-function renderStudentDetail() {
-    const number = document.getElementById("pa-detail-student").value;
-    const tbody = document.getElementById("pa-detail-tbody");
-    const summary = document.getElementById("pa-detail-summary");
-    const s = number ? allStudents.find(st => String(st.number) === String(number)) : null;
-
-    if (!s) {
-        tbody.innerHTML = "";
-        summary.innerText = "学年と生徒を選択してください";
-        return;
-    }
-    if (!hasCourseData()) {
-        tbody.innerHTML = `<tr><td colspan="3" style="color:#999;">単語データ(data_*.js)が読み込めないため表示できません</td></tr>`;
-        summary.innerText = "";
-        return;
-    }
-
-    const grade = s.grade || "";
-    const goldSet = new Set(
-        (wordProgressByStudent[String(s.number)] || [])
-            .filter(w => Number(w.heat) === 0)
-            .map(w => w.wordId)
-    );
-
-    const rows = [];
-    let totalGold = 0, totalWords = 0;
-    const cdS = cdOf(tbOf(s));
-    for (const unit in cdS) {
-        if (!cdS[unit][grade]) continue;
-        const wordIds = cdS[unit][grade].map(w => w.id);
-        const gold = wordIds.filter(id => goldSet.has(id)).length;
-        totalGold += gold;
-        totalWords += wordIds.length;
-        rows.push({ unit, gold, total: wordIds.length, rate: wordIds.length ? gold / wordIds.length : 0 });
-    }
-
-    summary.innerText = s.name + "さん（" + grade + "） 全体: " + totalGold + " / " + totalWords
-        + (totalWords ? "（" + Math.round(totalGold / totalWords * 100) + "%）" : "");
-    tbody.innerHTML = rows.map(r => `
-        <tr>
-            <td>${escapeHtml(r.unit)}</td>
-            <td>${Math.round(r.rate * 100)}%</td>
-            <td>${r.gold} / ${r.total}</td>
-        </tr>`).join("") || `<tr><td colspan="3" style="color:#999;">単元データがありません</td></tr>`;
-}
-
-/* ============ 進捗分析：単元別・全体 ============ */
-function renderUnitMastery() {
-    const gradeFilter = document.getElementById("pa-grade").value;
-    const tbody = document.getElementById("pa-unit-tbody");
-    if (!hasCourseData()) {
-        tbody.innerHTML = `<tr><td colspan="4" style="color:#999;">単語データ(data_*.js)が読み込めないため単元別分析はできません</td></tr>`;
-        return;
-    }
-    const rows = [];
-    for (const tb in TEXTBOOKS) {
-      const cd = cdOf(tb);
-      for (const unit in cd) {
-        for (const g in cd[unit]) {
-            if (gradeFilter && g !== gradeFilter) continue;
-            const wordIds = cd[unit][g].map(w => w.id);
-            const wordSet = new Set(wordIds);
-            const studentsOfGrade = allStudents.filter(s => s.grade === g && tbOf(s) === tb);
-            if (studentsOfGrade.length === 0) continue;
-            let goldTotal = 0;
-            studentsOfGrade.forEach(s => {
-                (wordProgressByStudent[String(s.number)] || []).forEach(w => {
-                    if (wordSet.has(w.wordId) && Number(w.heat) === 0) goldTotal++;
-                });
-            });
-            const possible = wordIds.length * studentsOfGrade.length;
-            rows.push({ unit, grade: tbLabel(tb) + " / " + g, rate: possible ? goldTotal / possible : 0, goldTotal, possible });
-        }
-      }
-    }
-    rows.sort((a, b) => a.rate - b.rate);
-    tbody.innerHTML = rows.map(r => `
-        <tr>
-            <td>${escapeHtml(r.grade)}</td>
-            <td>${escapeHtml(r.unit)}</td>
-            <td>${Math.round(r.rate * 100)}%</td>
-            <td>${r.goldTotal} / ${r.possible}</td>
-        </tr>`).join("") || `<tr><td colspan="4" style="color:#999;">データがありません</td></tr>`;
-}
-
-function renderStalledStudents() {
-    const days = Number(document.getElementById("pa-days").value) || 7;
-    const lastPlay = {};
-    allSessions.forEach(s => {
-        const key = String(s.studentNumber);
-        const t = parseDate(s.studiedAt).getTime();
-        if (!lastPlay[key] || t > lastPlay[key]) lastPlay[key] = t;
-    });
-    const now = Date.now();
-    const rows = allStudents.map(s => {
-        const t = lastPlay[String(s.number)];
-        const idleDays = t ? Math.floor((now - t) / 86400000) : null;
-        return { s, idleDays };
-    }).filter(r => r.idleDays === null || r.idleDays >= days)
-      .sort((a, b) => (b.idleDays == null ? 999999 : b.idleDays) - (a.idleDays == null ? 999999 : a.idleDays));
-
-    document.getElementById("pa-stalled-tbody").innerHTML = rows.map(r => `
-        <tr>
-            <td>${escapeHtml(r.s.number)}</td>
-            <td>${escapeHtml(r.s.name)}</td>
-            <td>${escapeHtml(r.s.grade || "")}</td>
-            <td>${r.idleDays == null ? "一度もプレイなし" : r.idleDays + "日"}</td>
-        </tr>`).join("") || `<tr><td colspan="4" style="color:#999;">該当する生徒はいません</td></tr>`;
 }
 
 /* ============ 期間集計 ============ */
@@ -1368,6 +1258,28 @@ function buildPickupUnitOptions() {
     }
 }
 
+/* ============ ピックアップ単元 ============ */
+// 日付はすべて日本時間の「YYYY-MM-DD」で扱う（開始日・終了日とも、その日を含む）
+function jstTodayStr() { return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10); }
+function addDaysStr(str, n) { const d = new Date(str + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function weekRangeOf(dateStr) {
+    const dow = (new Date(dateStr + "T00:00:00Z").getUTCDay() + 6) % 7; // 月曜=0
+    const mon = addDaysStr(dateStr, -dow);
+    return [mon, addDaysStr(mon, 6)];
+}
+function fmtMD(str) { return str ? Number(str.slice(5, 7)) + "/" + Number(str.slice(8, 10)) : ""; }
+function pickupStatus(p) {
+    const t = jstTodayStr();
+    if (p.startDate && p.startDate > t) return "scheduled";
+    if (p.endDate && p.endDate < t) return "expired";
+    return "active";
+}
+const PK_STATUS_LABEL = { active: "表示中", scheduled: "予約中", expired: "終了" };
+function pickupPeriodShort(p) {
+    if (!p.startDate && !p.endDate) return "無期限";
+    return (p.startDate ? fmtMD(p.startDate) : "") + "〜" + (p.endDate ? fmtMD(p.endDate) : "");
+}
+
 function pickupAppliesTo(p, school, grade) {
     // 空欄は「すべて」を意味する
     if (p.school && p.school !== school) return false;
@@ -1375,71 +1287,360 @@ function pickupAppliesTo(p, school, grade) {
     return true;
 }
 
-function renderPickups() {
-    const school = document.getElementById("pk-school").value;
-    const grade = document.getElementById("pk-grade").value;
-    const note = document.getElementById("pk-target-note");
+function buildPickupChecks() {
+    const mk = (cls, allId, kind, values) =>
+        `<label class="chk"><input type="checkbox" id="${allId}" onchange="onPkAllChange('${kind}')"> <b>すべて（共通）</b></label>` +
+        values.map(v => `<label class="chk"><input type="checkbox" class="${cls}" value="${escapeAttr(v)}" onchange="updatePickupPreview()"> ${escapeHtml(v)}</label>`).join("");
+    document.getElementById("pk-school-checks").innerHTML = mk("pk-school-cb", "pk-school-all", "school", SCHOOLS);
+    document.getElementById("pk-grade-checks").innerHTML = mk("pk-grade-cb", "pk-grade-all", "grade", GRADE_OPTIONS);
+    setPickupThisWeek();
+}
+function onPkAllChange(kind) {
+    const all = document.getElementById("pk-" + kind + "-all").checked;
+    document.querySelectorAll(".pk-" + kind + "-cb").forEach(cb => { if (all) cb.checked = false; cb.disabled = all; });
+    updatePickupPreview();
+}
+function setPickupThisWeek() {
+    const r = weekRangeOf(jstTodayStr());
+    document.getElementById("pk-start").value = r[0];
+    document.getElementById("pk-end").value = r[1];
+    updatePickupPreview();
+}
+function setPickupNextWeek() {
+    const r = weekRangeOf(addDaysStr(jstTodayStr(), 7));
+    document.getElementById("pk-start").value = r[0];
+    document.getElementById("pk-end").value = r[1];
+    updatePickupPreview();
+}
+function clearPickupPeriod() {
+    document.getElementById("pk-start").value = "";
+    document.getElementById("pk-end").value = "";
+    updatePickupPreview();
+}
+function getPickupCombos() {
+    const pick = kind => document.getElementById("pk-" + kind + "-all").checked
+        ? [""] : Array.from(document.querySelectorAll(".pk-" + kind + "-cb:checked")).map(cb => cb.value);
+    const combos = [];
+    pick("school").forEach(sc => pick("grade").forEach(gr => combos.push({ school: sc, grade: gr })));
+    return combos;
+}
+function updatePickupPreview() {
+    const el = document.getElementById("pk-preview");
+    if (!el) return;
     const tb = pickupTextbook();
-    const targets = allStudents.filter(s => tbOf(s) === tb &&
-        (!school || (s.school || "") === school) && (!grade || (s.grade || "") === grade));
-    note.innerText = "対象: " + tbLabel(tb) + " / " + (school || "すべての校舎") + " / " + (grade || "すべての学年")
-        + "（該当生徒 " + targets.length + " 名）";
+    document.getElementById("pk-form-tb").innerText = tbLabel(tb);
+    const combos = getPickupCombos();
+    if (combos.length === 0) { el.innerText = "校舎と学年を選んでください"; return; }
+    const n = allStudents.filter(s => tbOf(s) === tb &&
+        combos.some(c => (!c.school || (s.school || "") === c.school) && (!c.grade || (s.grade || "") === c.grade))).length;
+    el.innerText = "登録される設定: " + combos.length + " 件 ／ 対象生徒（" + tbLabel(tb) + "）: " + n + " 名";
+}
 
-    const list = allPickups.filter(p => (p.textbook || "sanseido") === tb && pickupAppliesTo(p, school, grade));
+function renderPickups() {
+    updatePickupPreview();
+    renderPickupMatrix();
+    renderPickupList();
+}
+
+function renderPickupMatrix() {
+    const tb = pickupTextbook();
+    const list = allPickups.filter(p => (p.textbook || "sanseido") === tb && pickupStatus(p) !== "expired")
+        .sort((a, b) => (pickupStatus(a) === "active" ? 0 : 1) - (pickupStatus(b) === "active" ? 0 : 1));
+    const countOf = (sc, gr) => allStudents.filter(s => tbOf(s) === tb && (s.school || "") === sc && (s.grade || "") === gr).length;
+    let html = "<thead><tr><th>校舎</th>" + GRADE_OPTIONS.map(g => `<th>${escapeHtml(g)}</th>`).join("") + "</tr></thead><tbody>";
+    SCHOOLS.forEach(sc => {
+        html += `<tr><td><b>${escapeHtml(sc)}</b></td>`;
+        GRADE_OPTIONS.forEach(gr => {
+            const n = countOf(sc, gr);
+            const items = list.filter(p => pickupAppliesTo(p, sc, gr));
+            let cell = items.map(p => {
+                const st = pickupStatus(p);
+                const inh = (!p.school && !p.grade) ? "全体共通" : !p.school ? "全校舎共通" : !p.grade ? "全学年共通" : "";
+                return `<div class="pk-item ${st}"><b>${escapeHtml(p.unit)}</b><span class="m">${escapeHtml(p.courseGrade || "")} ・ ${st === "scheduled" ? "予約 " : ""}${escapeHtml(pickupPeriodShort(p))}${inh ? " ・" + inh : ""}</span></div>`;
+            }).join("");
+            if (!items.length) cell = n > 0 ? '<span class="pk-none">設定なし</span>' : '<span style="color:#555;">—</span>';
+            html += `<td class="pk-cell">${cell}<div class="pk-n">👥 ${n}名</div></td>`;
+        });
+        html += "</tr>";
+    });
+    document.getElementById("pk-matrix").innerHTML = html + "</tbody>";
+}
+
+function renderPickupList() {
+    const stFilter = document.getElementById("pk-list-status").value;
+    const scFilter = document.getElementById("pk-list-school").value;
+    const order = { active: 0, scheduled: 1, expired: 2 };
+    const list = allPickups.filter(p => {
+        const st = pickupStatus(p);
+        if (stFilter === "current" && st === "expired") return false;
+        if (stFilter === "expired" && st !== "expired") return false;
+        if (scFilter === "__common__") return !p.school;
+        if (scFilter && p.school !== scFilter) return false;
+        return true;
+    }).sort((a, b) => (order[pickupStatus(a)] - order[pickupStatus(b)])
+        || String(b.startDate || "").localeCompare(String(a.startDate || ""))
+        || String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     document.getElementById("pk-count").innerText = list.length + " 件表示中 / 全 " + allPickups.length + " 件";
-    document.getElementById("pk-tbody").innerHTML = list.map(p => `
-        <tr>
-            <td>${escapeHtml(p.school || "すべて")}</td>
-            <td>${escapeHtml(p.grade || "すべて")}</td>
+    document.getElementById("pk-tbody").innerHTML = list.map(p => {
+        const st = pickupStatus(p);
+        const id = escapeAttr(p.id);
+        return `<tr>
+            <td><span class="tag ${st}">${PK_STATUS_LABEL[st]}</span></td>
+            <td>${escapeHtml(tbLabel(p.textbook || "sanseido"))}</td>
+            <td>${escapeHtml(p.school || "全校舎")}</td>
+            <td>${escapeHtml(p.grade || "全学年")}</td>
             <td>${escapeHtml(p.courseGrade)}</td>
             <td>${escapeHtml(p.unit)}</td>
-            <td>${p.updatedAt ? formatDateTime(p.updatedAt) : ""}</td>
-            <td><button class="btn danger small" onclick="deletePickupConfirm('${escapeAttr(p.school)}','${escapeAttr(p.grade)}','${escapeAttr(p.courseGrade)}','${escapeAttr(p.unit)}')">削除</button></td>
-        </tr>`).join("") || `<tr><td colspan="6" style="color:#999;">まだ設定されていません</td></tr>`;
+            <td>${escapeHtml(p.startDate || "—")}</td>
+            <td>${escapeHtml(p.endDate || "無期限")}</td>
+            <td>${p.createdAt ? formatDateTime(p.createdAt) : ""}</td>
+            <td>
+                <button class="btn sub small" onclick="changePickupPeriod('${id}')">期間変更</button>
+                ${st !== "expired" ? `<button class="btn sub small" onclick="endPickupNow('${id}')">今すぐ終了</button>` : ""}
+                <button class="btn danger small" onclick="deletePickupConfirm('${id}')">削除</button>
+            </td>
+        </tr>`;
+    }).join("") || `<tr><td colspan="10" style="color:#999;">該当する設定がありません</td></tr>`;
 }
+
+function isDateStr(v) { return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v + "T00:00:00Z")); }
+function findPickup(id) { return allPickups.find(p => String(p.id) === String(id)); }
 
 function addPickupSubmit() {
-    const school = document.getElementById("pk-school").value;
-    const grade = document.getElementById("pk-grade").value;
-    const courseGrade = document.getElementById("pk-course-grade").value;
-    const unit = document.getElementById("pk-unit").value;
     const msg = document.getElementById("pk-msg");
     msg.className = "msg";
-    if (!unit) {
-        msg.className = "msg err";
-        msg.innerText = "Unit を選択してください";
-        return;
-    }
+    const combos = getPickupCombos();
+    const courseGrade = document.getElementById("pk-course-grade").value;
+    const unit = document.getElementById("pk-unit").value;
+    const startDate = document.getElementById("pk-start").value;
+    const endDate = document.getElementById("pk-end").value;
+    const fail = t => { msg.className = "msg err"; msg.innerText = t; };
+    if (combos.length === 0) return fail("校舎と学年を選んでください");
+    if (!unit) return fail("Unit を選択してください");
+    if (startDate && endDate && startDate > endDate) return fail("終了日は開始日以降にしてください");
+    if (endDate && endDate < jstTodayStr() && !confirm("終了日が過去の日付です。登録してもすぐ終了扱いになります。よろしいですか？")) return;
     msg.innerText = "登録中…";
-    requestSheet({ action: "addPickup", textbook: pickupTextbook(), school, grade, courseGrade, unit, updatedAt: new Date().toISOString() }).then(res => {
+    requestSheet({ action: "addPickups", textbook: pickupTextbook(), targets: combos, courseGrade, unit, startDate, endDate }, 30000).then(res => {
         if (res && res.result === "success") {
             msg.className = "msg ok";
-            msg.innerText = "追加しました";
+            msg.innerText = res.added + " 件を登録しました" + (res.skipped ? "（同じ設定が既にあるため " + res.skipped + " 件はスキップ）" : "");
             reloadPickups();
+        } else if (res && res.message === "need_pickup_sql") {
+            fail("DBにピックアップの期間用の列がありません。pickup.sql をSupabaseのSQL Editorで実行してください");
         } else {
-            msg.className = "msg err";
-            msg.innerText = (res && res.message === "duplicate")
-                ? "同じ組み合わせが既に登録されています"
-                : "追加に失敗しました";
+            fail("登録に失敗しました");
         }
-    }).catch(() => {
-        msg.className = "msg err";
-        msg.innerText = "通信エラーが発生しました";
-    });
+    }).catch(() => fail("通信エラーが発生しました"));
 }
 
-function deletePickupConfirm(school, grade, courseGrade, unit) {
-    if (!confirm(`【${tbLabel(pickupTextbook())}】${school || "すべての校舎"} / ${grade || "すべての学年"} の「${unit}」を削除します。よろしいですか？`)) return;
-    requestSheet({ action: "deletePickup", textbook: pickupTextbook(), school, grade, courseGrade, unit }).then(res => {
+function changePickupPeriod(id) {
+    const p = findPickup(id);
+    if (!p) return;
+    const st = prompt("開始日（YYYY-MM-DD）\n空欄にすると開始日なし（すぐ表示）", p.startDate || "");
+    if (st === null) return;
+    const en = prompt("終了日（YYYY-MM-DD）\n空欄にすると無期限", p.endDate || "");
+    if (en === null) return;
+    updatePickupPeriod(p, st.trim(), en.trim());
+}
+
+function endPickupNow(id) {
+    const p = findPickup(id);
+    if (!p) return;
+    if (!confirm(`「${p.unit}」（${p.school || "全校舎"} / ${p.grade || "全学年"}）を今すぐ終了します。履歴には残ります。よろしいですか？`)) return;
+    const yesterday = addDaysStr(jstTodayStr(), -1);
+    const start = (p.startDate && p.startDate > yesterday) ? yesterday : (p.startDate || "");
+    updatePickupPeriod(p, start, yesterday);
+}
+
+function updatePickupPeriod(p, start, end) {
+    if ((start && !isDateStr(start)) || (end && !isDateStr(end))) { alert("日付は YYYY-MM-DD の形式で入力してください"); return; }
+    if (start && end && start > end) { alert("終了日は開始日以降にしてください"); return; }
+    requestSheet({ action: "updatePickupPeriod", id: p.id, startDate: start, endDate: end }).then(res => {
+        if (res && res.result === "success") reloadPickups();
+        else alert("更新に失敗しました");
+    }).catch(() => alert("通信エラーが発生しました"));
+}
+
+function deletePickupConfirm(id) {
+    const p = findPickup(id);
+    if (!p) return;
+    if (!confirm(`【${tbLabel(p.textbook || "sanseido")}】${p.school || "全校舎"} / ${p.grade || "全学年"} の「${p.unit}」を削除します。履歴からも消えます。\n（履歴として残したい場合は「今すぐ終了」を使ってください）\nよろしいですか？`)) return;
+    requestSheet({ action: "deletePickup", id: p.id }).then(res => {
         if (res && res.result === "success") reloadPickups();
         else alert("削除に失敗しました");
     }).catch(() => alert("通信エラーが発生しました"));
 }
 
 function reloadPickups() {
-    requestSheetRetry({ action: "pickups" }, { timeoutMs: 10000, retries: 2, backoffMs: 2500 }).then(r => {
-        if (r && r.result === "success") { allPickups = r.pickups || []; renderPickups(); }
-    }).catch(() => { /* 次の更新時に再取得 */ });
+    fetchAction("pickups").then(r => { allPickups = r.pickups || []; renderPickups(); })
+        .catch(() => { /* 次の更新時に再取得 */ });
+}
+
+/* ============ 利用状況 ============ */
+let usageMetric = "people";
+function loadUsage(force) {
+    if (usageData && !force) { renderUsage(); return; }
+    setStatus("読み込み中…");
+    fetchAction("adminUsage").then(res => {
+        usageData = res;
+        setStatus("最終更新: " + new Date().toLocaleString("ja-JP"));
+        renderUsage();
+    }).catch(() => setStatus("利用状況の取得に失敗しました。「更新」を押し直してください。"));
+}
+function schoolOrder(name) { const i = SCHOOLS.indexOf(name); return i >= 0 ? i : 999; }
+function pct(n, d) { return d ? Math.round(n / d * 100) : 0; }
+function rateStyle(r) { return r >= 60 ? "color:var(--success-color);font-weight:bold;" : r < 30 ? "color:var(--danger-color);font-weight:bold;" : ""; }
+
+function renderUsage() {
+    const d = usageData;
+    if (!d) return;
+    const rows = d.schools.slice().sort((a, b) => schoolOrder(a.school) - schoolOrder(b.school) || String(a.school).localeCompare(String(b.school), "ja"));
+    const sum = k => rows.reduce((n, r) => n + (r[k] || 0), 0);
+    const T = { enrolled: sum("enrolled"), a7: sum("a7"), a30: sum("a30"), aPrev7: sum("aPrev7"), s7: sum("s7"), login7: sum("login7") };
+    const diffText = (a, b) => (a - b > 0 ? "+" : a - b < 0 ? "" : "±") + (a - b);
+    document.getElementById("us-cards").innerHTML = `
+        <div class="stat-box"><div class="v">${T.enrolled}</div><div class="l">在籍人数</div></div>
+        <div class="stat-box"><div class="v">${T.a7} <small style="font-size:12px;">(${pct(T.a7, T.enrolled)}%)</small></div><div class="l">直近7日に学習した人</div></div>
+        <div class="stat-box"><div class="v">${T.a30} <small style="font-size:12px;">(${pct(T.a30, T.enrolled)}%)</small></div><div class="l">直近30日に学習した人</div></div>
+        <div class="stat-box"><div class="v">${T.s7}</div><div class="l">直近7日の学習回数</div></div>`;
+    const rowHtml = (name, r, bold) => {
+        const r7 = pct(r.a7, r.enrolled), r30 = pct(r.a30, r.enrolled);
+        return `<tr>
+            <td>${bold ? "<b>" : ""}${escapeHtml(name)}${bold ? "</b>" : ""}</td>
+            <td>${r.enrolled}</td>
+            <td>${r.a7}</td><td style="${rateStyle(r7)}">${r7}%</td>
+            <td>${diffText(r.a7, r.aPrev7)}</td>
+            <td>${r.s7}</td>
+            <td>${r.enrolled ? (r.s7 / r.enrolled).toFixed(1) : "-"}</td>
+            <td>${r.a30}</td><td style="${rateStyle(r30)}">${r30}%</td>
+            <td>${r.login7 == null ? "-" : r.login7}</td>
+        </tr>`;
+    };
+    document.getElementById("us-school-tbody").innerHTML =
+        rows.map(r => rowHtml(r.school || "（校舎未設定）", r, false)).join("") + rowHtml("全体", T, true);
+
+    // 週ごとの推移
+    const weeks = d.weekLabels || [];
+    document.getElementById("us-trend-thead").innerHTML = "<tr><th>校舎</th>" + weeks.map(w => `<th class="heat-cell">${escapeHtml(w)}週</th>`).join("") + "</tr>";
+    const valOf = (r, i) => {
+        const w = (r.weeks || [])[i] || { people: 0, sessions: 0 };
+        return usageMetric === "people" ? w.people : usageMetric === "sessions" ? w.sessions : pct(w.people, r.enrolled);
+    };
+    let max = 1;
+    rows.forEach(r => weeks.forEach((_, i) => { max = Math.max(max, valOf(r, i)); }));
+    document.getElementById("us-trend-tbody").innerHTML = rows.map(r =>
+        `<tr><td>${escapeHtml(r.school || "（校舎未設定）")}</td>` + weeks.map((_, i) => {
+            const v = valOf(r, i);
+            return `<td class="heat-cell" style="background:rgba(52,152,219,${(v / max * 0.55).toFixed(2)});">${v}${usageMetric === "rate" ? "%" : ""}</td>`;
+        }).join("") + "</tr>").join("");
+    ["people", "rate", "sessions"].forEach(m => document.getElementById("us-m-" + m).classList.toggle("active", usageMetric === m));
+    document.getElementById("us-note").innerText = "「学習した人」＝その期間に1回以上、練習・テスト・タイピングのいずれかを完了した生徒です。集計日時: " + new Date(d.generatedAt).toLocaleString("ja-JP");
+    renderUsageIdle();
+}
+function setUsageMetric(m) { usageMetric = m; renderUsage(); }
+
+function renderUsageIdle() {
+    const d = usageData;
+    if (!d) return;
+    const days = Number(document.getElementById("us-idle-days").value) || 14;
+    const school = document.getElementById("us-idle-school").value;
+    const now = Date.now();
+    const rows = d.students.filter(s => !school || (s.school || "") === school).map(s => ({
+        s, idle: s.lastStudiedMs ? Math.floor((now - s.lastStudiedMs) / 86400000) : null,
+    })).filter(r => r.idle === null || r.idle >= days)
+        .sort((a, b) => (b.idle == null ? 9999 : b.idle) - (a.idle == null ? 9999 : a.idle) || String(a.s.number).localeCompare(String(b.s.number), "ja", { numeric: true }));
+    document.getElementById("us-idle-count").innerText = rows.length + " 名 / 在籍 " + d.students.filter(s => !school || (s.school || "") === school).length + " 名" +
+        "（学習記録は直近8週間分を集計。それより前のみの生徒は「記録なし」と表示されます）";
+    document.getElementById("us-idle-tbody").innerHTML = rows.map(r => `
+        <tr>
+            <td>${escapeHtml(r.s.number)}</td><td>${escapeHtml(r.s.name)}</td>
+            <td>${escapeHtml(r.s.school || "")}</td><td>${escapeHtml(r.s.grade || "")}</td>
+            <td>${r.idle == null ? "8週間以内に記録なし" : r.idle + "日前"}</td>
+            <td>${r.s.lastLoginAt ? formatDateTime(r.s.lastLoginAt) : "—"}</td>
+        </tr>`).join("") || `<tr><td colspan="6" style="color:#999;">該当する生徒はいません</td></tr>`;
+}
+
+/* ============ ランキング（管理者用） ============ */
+function loadRanking(force) {
+    if (rankData && !force) { renderRanking(); return; }
+    setStatus("読み込み中…");
+    const days = Number(document.getElementById("rk-days").value) || 7;
+    requestSheetRetry({ action: "adminRanking", days }, { timeoutMs: 60000, retries: 1, backoffMs: 3000 }).then(res => {
+        if (!res || res.result !== "success") throw new Error("bad_response");
+        rankData = res;
+        setStatus("最終更新: " + new Date().toLocaleString("ja-JP"));
+        renderRanking();
+    }).catch(() => setStatus("ランキングの取得に失敗しました。「更新」を押し直してください。"));
+}
+
+function rankWithTies(rows, key) {
+    const sorted = rows.slice().sort((a, b) => (b[key] - a[key]) || String(a.number).localeCompare(String(b.number), "ja", { numeric: true }));
+    let prev = NaN, rank = 0;
+    return sorted.map((r, i) => { if (r[key] !== prev) { rank = i + 1; prev = r[key]; } return Object.assign({}, r, { rank }); });
+}
+
+function renderRanking() {
+    const d = rankData;
+    if (!d) return;
+    const board = document.getElementById("rk-board").value;
+    const school = document.getElementById("rk-school").value;
+    const grade = document.getElementById("rk-grade").value;
+    const showOff = document.getElementById("rk-showoff").checked;
+    const thead = document.getElementById("rk-thead");
+    const tbody = document.getElementById("rk-tbody");
+    const note = document.getElementById("rk-note");
+    const periodText = "直近" + d.windowDays + "日";
+
+    if (board === "school") {
+        const now = Date.now(), win = d.windowDays * 86400000;
+        const g = {};
+        d.students.forEach(st => {
+            if (!st.enabled || !st.school) return;
+            const loggedIn = st.lastLoginAt && Date.parse(st.lastLoginAt) >= now - win;
+            if (!loggedIn && !(st.sessions > 0)) return; // 休眠アカウントは母数に入れない（生徒画面と同じ）
+            const x = g[st.school] || (g[st.school] = { number: st.school, school: st.school, sum: 0, n: 0 });
+            x.n++; x.sum += st.vol || 0;
+        });
+        const list = Object.values(g).map(x => Object.assign(x, { avg: Math.round(x.sum / x.n * 10) / 10 }));
+        const ranked = rankWithTies(list, "avg");
+        note.innerText = periodText + "の、校舎ごとの1人あたり正解数（校舎の正解数合計 ÷ 期間内にログインまたは学習した生徒数）です。校舎・学年の絞り込みは無効です。";
+        thead.innerHTML = "<tr><th>順位</th><th>校舎</th><th>1人あたり正解数</th><th>対象人数</th><th>正解数合計</th></tr>";
+        tbody.innerHTML = ranked.map(r => `<tr><td>${r.rank}</td><td>${escapeHtml(r.school)}</td><td><b>${r.avg}</b></td><td>${r.n}</td><td>${r.sum}</td></tr>`).join("")
+            || `<tr><td colspan="5" style="color:#999;">データがありません</td></tr>`;
+        return;
+    }
+
+    const key = board === "volume" ? "vol" : board === "scoreItem" ? "maxScore" : "maxRaw";
+    const label = board === "volume" ? "正解数" : board === "scoreItem" ? "ハイスコア（アイテム込）" : "ハイスコア（アイテムなし）";
+    const pool = d.students.filter(st => (st[key] || 0) > 0 && (!school || (st.school || "") === school) && (!grade || (st.grade || "") === grade));
+    const ranked = rankWithTies(pool.filter(st => st.enabled), key);
+    const off = showOff ? pool.filter(st => !st.enabled).sort((a, b) => (b[key] - a[key])) : [];
+    note.innerText = periodText + "の" + label + "。順位は絞り込んだ範囲内での順位で、ランキングに参加している生徒だけが対象です（生徒画面ではニックネームのみ表示されます）。";
+    thead.innerHTML = `<tr><th>順位</th><th>ニックネーム<br><span style="font-weight:normal;font-size:10px;">(生徒画面の表示名)</span></th><th>氏名</th><th>番号</th><th>校舎</th><th>学年</th><th>${label}</th><th></th></tr>`;
+    const row = (r, rankText, dim) => `<tr${dim ? ' style="opacity:0.55;"' : ""}>
+        <td>${rankText}</td>
+        <td>${escapeHtml(r.nickname || "（未設定）")}${dim ? ' <span style="color:#999;font-size:11px;">[ランキング非参加]</span>' : ""}</td>
+        <td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.number)}</td>
+        <td>${escapeHtml(r.school || "")}</td><td>${escapeHtml(r.grade || "")}</td>
+        <td><b>${r[key]}</b></td>
+        <td><button class="btn sub small" onclick="resetNicknameFromRanking('${escapeAttr(r.number)}')">ニックネームを自動生成に戻す</button></td>
+    </tr>`;
+    tbody.innerHTML = ranked.map(r => row(r, r.rank, false)).join("") + off.map(r => row(r, "—", true)).join("")
+        || `<tr><td colspan="8" style="color:#999;">該当する記録がありません</td></tr>`;
+}
+
+function resetNicknameFromRanking(number) {
+    const st = rankData && rankData.students.find(x => String(x.number) === String(number));
+    if (!st) return;
+    if (!confirm(`${st.name}（${number}番）のニックネーム「${st.nickname || ""}」を、自動生成の名前に戻します。よろしいですか？`)) return;
+    requestSheet({ action: "resetNickname", number }).then(res => {
+        if (res && res.result === "success") {
+            st.nickname = res.nickname;
+            const a = allStudents.find(x => String(x.number) === String(number));
+            if (a) a.nickname = res.nickname;
+            renderRanking();
+        } else alert("変更に失敗しました");
+    }).catch(() => alert("通信エラーが発生しました"));
 }
 
 /* ============ ユーティリティ ============ */
