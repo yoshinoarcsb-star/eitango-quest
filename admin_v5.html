@@ -154,7 +154,7 @@
             <div class="panel">
                 <h2 style="font-size:15px;">CSVで一括操作</h2>
                 <div class="add-form">
-                    <label class="f">CSVファイル（列: 生徒番号,氏名,合言葉,学年,校舎,教材。教材は「三省堂」「東京書籍」、空欄は三省堂）
+                    <label class="f">CSVファイル（列: 生徒番号,氏名,合言葉,学年,校舎,教材。教材は「三省堂」「東京書籍」「光村図書」「開隆堂」、空欄は三省堂）
                         <input type="file" id="stu-csv-file" accept=".csv">
                     </label>
                     <button class="btn" onclick="importStudentsCsv(document.getElementById('stu-csv-file'))">📥 取り込む</button>
@@ -418,6 +418,7 @@
 <script src="data_sanseido.js" onerror="window.__dataJsMissing = true;"></script>
 <script src="data_tokyo.js" onerror="window.__dataJsMissing = true;"></script>
 <script src="data_mitsumura.js" onerror="window.__dataJsMissing = true;"></script>
+<script src="data_kairyudo.js" onerror="window.__dataJsMissing = true;"></script>
 <script>
 /* ---- Supabase連携設定 ----
    このファイルはネットに公開しない（GitHub等にアップロードしない）でください。 */
@@ -1201,7 +1202,7 @@ function hasCourseData() {
     return typeof TEXTBOOKS !== "undefined" && TEXTBOOKS && Object.keys(TEXTBOOKS).length > 0;
 }
 /* ---- 教材（三省堂 / 東京書籍） ---- */
-const TEXTBOOK_LIST = [{ id: "sanseido", label: "三省堂" }, { id: "tokyo", label: "東京書籍" }, { id: "mitsumura", label: "光村図書" }];
+const TEXTBOOK_LIST = [{ id: "sanseido", label: "三省堂" }, { id: "tokyo", label: "東京書籍" }, { id: "mitsumura", label: "光村図書" }, { id: "kairyudo", label: "開隆堂" }];
 function tbOf(s) { return (s && s.textbook) || "sanseido"; }
 function tbLabel(id) { const t = TEXTBOOK_LIST.find(x => x.id === id); return t ? t.label : id; }
 function tbIdFromText(v) { // CSV用：「東京書籍」でも「tokyo」でも受け付ける。空欄・不明は三省堂
