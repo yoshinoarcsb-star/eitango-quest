@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英単語クエストver.05.01</title>
+    <title>英単語クエストver.05.02</title>
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -164,7 +164,7 @@
     <div id="save-warn">⚠ 進捗を保存できません。このまま遊べますが記録は残りません。埋め込み表示やプライベートモードではなく、HTMLファイルを Safari / Chrome で直接開いてください。</div>
 
     <div id="screen-login" class="screen active">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.05.01</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.05.02</small></h1>
         <div class="stats-box" style="text-align:center;">
             <label style="display:block; margin-bottom:6px;">生徒番号</label>
             <input type="text" id="loginNumber" inputmode="numeric" placeholder="001" style="width:100%; padding:10px; border-radius:8px; border:1px solid #444; background:#0f1730; color:#fff; font-size:16px; text-align:center; margin-bottom:12px;">
@@ -177,7 +177,7 @@
     </div>
 
     <div id="screen-home" class="screen">
-        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.05.01</small></h1>
+        <h1>英単語クエスト<br><small style="font-size:14px; color:#fff;">ver.05.02</small></h1>
         <div class="stats-box" style="font-size:12px; color:#aaa; text-align:center; padding:10px;">
             <div>👤 ログイン中: <b id="stat-studentname" style="color:#fff;"></b>（<span id="stat-studentnumber"></span>番）</div>
             <div style="margin-top:2px;"><span id="stat-studentschool"></span> ・ <span id="stat-studentgrade"></span></div>
@@ -340,7 +340,11 @@
             <h3 style="margin-bottom:8px; color:var(--danger-color);">📝 間違えた単語一覧</h3>
             <div id="res-missed-list"></div>
         </div>
-        <button class="btn" onclick="changeScreen('screen-home')">拠点へ戻る</button>
+        <button class="btn" onclick="retrySameMode()">🔁 同じモードでもう一度</button>
+        <button class="btn btn-sub" onclick="retryToReady()">🎒 準備画面へ（モード・アイテムを選ぶ）</button>
+        <button class="btn btn-sub" onclick="backToUnitSelect()">📋 ステージ選択へ</button>
+        <button class="btn btn-sub" onclick="backToGradeSelect()">🎓 学年選択へ</button>
+        <button class="btn" style="background:#555;" onclick="changeScreen('screen-home')">🏠 拠点へ戻る</button>
     </div>
 
     <div id="screen-collection" class="screen">
@@ -394,7 +398,7 @@
 </div>
 
 <script>
-// ===== 英単語クエスト ver.05.01 =====
+// ===== 英単語クエスト ver.05.02 =====
 // 単語データは教材ごとのファイル（data_sanseido.js / data_tokyo.js。build_data.py で生成）。
 // ログイン後、その生徒の教材ファイルだけを読み込んで courseData / courseOrder に入れる。
 var courseData = {};
@@ -1367,6 +1371,30 @@ function startQuest(mode) {
     if (quizWords.length === 0) { alert("問題データがありません"); return; }
     changeScreen("screen-quiz");
     nextQuestion();
+}
+
+// ---------- リザルト画面からの移動 ----------
+// 同じステージを同じモードでもう一度（アイテムは使わずに開始。使いたい場合は準備画面へ）
+function retrySameMode() {
+    if (!selectedUnit || !selectedGrade || !currentMode) { changeScreen("screen-home"); return; }
+    setupReadyScreen();          // アイテム一覧を作り直す（前回使った分は消費済み）
+    startQuest(currentMode);
+}
+// 準備画面へ（モード選択・アイテム装備をやり直せる）
+function retryToReady() {
+    if (!selectedUnit || !selectedGrade) { changeScreen("screen-home"); return; }
+    setupReadyScreen();
+}
+// 同じ学年のステージ選択へ（ゴールド数などを最新にして表示）
+function backToUnitSelect() {
+    if (!selectedGrade) { changeScreen("screen-gradeTop"); return; }
+    buildUnitList();
+    changeScreen("screen-unit");
+}
+// 学年選択へ
+function backToGradeSelect() {
+    buildGradeTopList();
+    changeScreen("screen-gradeTop");
 }
 
 function getTimeLimit() {
